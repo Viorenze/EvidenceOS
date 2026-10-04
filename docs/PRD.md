@@ -64,11 +64,14 @@
 
 SSE 事件：
 
-- `step`：`{node, status, detail}`（retrieve / grade / rewrite / generate）
+- `step`：`{node, status, detail}`（retrieve / grade / rewrite / generate / verify_citations / refuse）
 - `token`：`{text}`
 - `citations`：`{items: [{n, chunk_id, document, page, heading, snippet}]}`
 - `done`：`{run_id, refused, latency_ms}`
 - `error`：`{message}`
+
+> **流式时序设计说明（D4 锁定）**：
+> 服务端采用“完整生成 → 服务端引用校验 → 失败重试/拒答 → 确认答案有效 → SSE token 推流”的策略。整个图执行进度通过实时 `step` 事件呈现。最终确认的答案通过 `token` 事件流式推送给前端，保证客户端绝不会收到未校验的幻觉标记或在拒答前展示半成品内容。
 
 ## 7. 检索设计
 
@@ -94,15 +97,15 @@ START → retrieve → grade ──sufficient──→ generate → verify_citat
                      └─ rewrites = 2 → refuse → END
 ```
 
-**State**：`question, query, rewrites, chunks, grade, answer, citations, refused, steps`
+**State**：`question, query, rewrites, chunks, grade, answer, citations, refused, steps, generate_retries`
 
 **grade**：LLM 结构化输出 `{sufficient: bool, reason: str, missing: str}`，判断当前检索结果能否回答问题。
 
 **rewrite**：根据 `missing` 生成新查询，最多 2 次。
 
-**generate**：上下文片段编号为 `[1]…[k]`，要求回答中用 `[n]` 标注来源，流式输出。
+**generate**：上下文片段编号为 `[1]…[k]`，要求回答中用 `[n]` 标注来源。
 
-**verify_citations**：服务端校验每个 `[n]` 都指向本次检索到的 chunk，剔除非法引用；若没有任何合法引用，重试生成一次，仍没有就拒答。
+**verify_citations**：服务端校验每个 `[n]` 都指向本次检索到的 chunk，支持 `[n]`、`【n】` 与 `[n, m]` 格式，剔除非法引用；若没有任何合法引用，重试生成一次，仍没有就拒答。引用校验确保引用标记在检索范围内，降低幻觉风险。
 
 **refuse**：固定文案，说明知识库中没有足够证据，不调用 LLM 编造。
 

@@ -39,3 +39,6 @@ package = false
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests requiring real services",
+]

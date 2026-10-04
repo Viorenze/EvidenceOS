@@ -74,7 +74,8 @@ def chunk_text(
 
         if cut_offset != -1:
             chunk_str = text[pos : pos + cut_offset].strip()
-            pos = pos + cut_offset
+            # Ensure the next chunk overlaps by chunk_overlap characters while guaranteeing forward progress
+            pos = max(pos + 1, pos + cut_offset - chunk_overlap)
         else:
             chunk_str = text[pos:end].strip()
             pos += step
@@ -91,7 +92,11 @@ def chunk_markdown(
     chunk_size: int = 500,
     chunk_overlap: int = 50,
 ) -> List[RawChunk]:
-    """Chunk Markdown documents by tracking heading breadcrumbs and section bodies."""
+    """Chunk Markdown documents by tracking heading breadcrumbs and section bodies.
+
+    Ignores hash signs inside code fences (```) to prevent code comments
+    from polluting heading hierarchies.
+    """
     lines = content.splitlines()
     sections: List[tuple[str, str]] = []  # (heading_breadcrumb, section_text)
 
@@ -100,6 +105,7 @@ def chunk_markdown(
     current_lines: List[str] = []
 
     heading_pattern = re.compile(r"^(#{1,6})\s+(.+)$")
+    in_code_block = False
 
     def current_breadcrumb() -> Optional[str]:
         if not heading_stack:
@@ -107,7 +113,11 @@ def chunk_markdown(
         return " > ".join(title for _, title in heading_stack)
 
     for line in lines:
-        match = heading_pattern.match(line)
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+
+        match = heading_pattern.match(line) if not in_code_block else None
         if match:
             # Save accumulated lines for previous heading
             if current_lines:

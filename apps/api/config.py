@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     max_rewrites: int = 2
     max_generate_retries: int = 1
     fixed_refusal_text: str = "根据已有知识库内容，无法回答该问题。"
+    citation_snippet_chars: int = 200
 
 
 @lru_cache()

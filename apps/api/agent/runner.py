@@ -58,29 +58,57 @@ def run_agent(
     }
 
     start_time = time.perf_counter()
-    final_state: Dict[str, Any] = compiled_graph.invoke(initial_state)
-    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-
     run_id = str(uuid.uuid4())
+    execution_error: Optional[Exception] = None
+
+    try:
+        final_state: Dict[str, Any] = compiled_graph.invoke(initial_state)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        logger.error("LangGraph agent invocation failed: %s", exc, exc_info=True)
+        execution_error = exc
+        error_step = {
+            "node": "agent",
+            "status": "failed",
+            "detail": f"Execution failed: {exc}",
+        }
+        final_state = {
+            "answer": "",
+            "citations": [],
+            "steps": [error_step],
+            "refused": False,
+        }
+
     answer_text = final_state.get("answer") or ""
     citations_list = list(final_state.get("citations") or [])
     steps_list = list(final_state.get("steps") or [])
     is_refused = bool(final_state.get("refused", False))
 
-    # Persist run record to PostgreSQL
-    run_record = Run(
-        id=run_id,
-        question=question,
-        mode=mode,
-        answer=answer_text,
-        citations=citations_list,
-        steps=steps_list,
-        refused=is_refused,
-        latency_ms=round(elapsed_ms, 2),
-    )
-    db.add(run_record)
-    db.commit()
-    db.refresh(run_record)
+    # Best-effort persistence: database errors must not mask execution errors
+    try:
+        run_record = Run(
+            id=run_id,
+            question=question,
+            mode=mode,
+            answer=answer_text,
+            citations=citations_list,
+            steps=steps_list,
+            refused=is_refused,
+            latency_ms=round(elapsed_ms, 2),
+        )
+        db.add(run_record)
+        db.commit()
+    except Exception as db_exc:
+        logger.warning("Failed to persist run record to database (best-effort): %s", db_exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    # If graph execution failed, re-raise original exception for upstream handling (e.g. SSE error event)
+    if execution_error is not None:
+        raise execution_error
 
     return RunResult(
         run_id=run_id,

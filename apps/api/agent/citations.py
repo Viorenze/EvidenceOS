@@ -1,55 +1,94 @@
 """Server-side citation extraction and verification (AGENTS.md Rule 6).
 
-Never trust citation markers from the model without checking them against
-the retrieved chunks. Cleans out invalid markers from the final answer text
-to prevent dangling citations.
+Why this citation verification design works (Interview Reference):
+1. Citation contract and normalization:
+   Supports [1], Chinese full-width 【1】, and comma-separated [1, 2].
+   Normalizes them before validation to prevent false refusals when domestic LLMs
+   emit full-width brackets or aggregated citations.
+2. Code and subscript preservation:
+   Fenced code blocks (```) and inline code (`) are shielded from citation cleaning.
+   Variable access notation like `data[0]` is explicitly preserved via negative
+   lookbehind (`(?<![a-zA-Z0-9_])`), preventing data corruption in technical answers.
+3. Clean answer post-processing:
+   Only invalid markers in prose are stripped, preserving indentation and code whitespace.
 """
 
 import re
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 def extract_citation_numbers(text: str) -> List[int]:
-    """Extract all citation indices `[n]` in appearance order, deduplicated."""
+    """Extract all citation indices `[n]` in appearance order, deduplicated.
+
+    Supports `[1]`, Chinese full-width `【1】`, and grouped citations `[1, 2]`.
+    Ignores subscript notations in code like `data[0]`.
+    """
     if not text:
         return []
-    matches = re.findall(r"\[(\d+)\]", text)
+
+    # Strip code blocks and inline code to prevent false positives from code
+    cleaned = re.sub(r"```[\s\S]*?```", "", text)
+    cleaned = re.sub(r"`[^`\n]+`", "", cleaned)
+
+    # Normalize full-width Chinese brackets
+    cleaned = re.sub(r"【(\d+(?:\s*,\s*\d+)*)】", r"[\1]", cleaned)
+
+    # Match bracketed numbers not preceded by identifier characters
+    matches = re.findall(r"(?<![a-zA-Z0-9_])\[(\d+(?:\s*,\s*\d+)*)\]", cleaned)
     seen: Set[int] = set()
     numbers: List[int] = []
     for m in matches:
-        val = int(m)
-        if val not in seen:
-            seen.add(val)
-            numbers.append(val)
+        for part in m.split(","):
+            part_str = part.strip()
+            if part_str.isdigit():
+                val = int(part_str)
+                if val not in seen:
+                    seen.add(val)
+                    numbers.append(val)
     return numbers
 
 
 def clean_answer_citations(text: str, valid_numbers: Set[int]) -> str:
-    """Remove illegal or out-of-range [n] citation markers from the answer text.
+    """Remove illegal or out-of-range citation markers from prose.
 
-    Ensures the final user-facing text never contains dangling references.
+    Preserves code blocks, inline code, and programming subscripts (e.g. data[0]).
+    Only cleans dangling citation markers and their associated trailing space.
     """
     if not text:
         return ""
 
-    def _replace_marker(match: re.Match) -> str:
-        n = int(match.group(1))
-        if n in valid_numbers:
-            return match.group(0)
-        # Remove illegal citation marker
-        return ""
+    # Split by fenced code blocks and inline code to shield code content from tampering
+    parts = re.split(r"(```[\s\S]*?```|`[^`\n]+`)", text)
 
-    cleaned = re.sub(r"\[(\d+)\]", _replace_marker, text)
-    # Normalize excessive spaces created by removed tags
-    cleaned = re.sub(r" +", " ", cleaned)
-    # Normalize spaces before punctuation
-    cleaned = re.sub(r" +([，。！？,.!?])", r"\1", cleaned)
-    return cleaned.strip()
+    for i in range(0, len(parts), 2):
+        part = parts[i]
+
+        # Normalize Chinese brackets in prose
+        part = re.sub(r"【(\d+(?:\s*,\s*\d+)*)】", r"[\1]", part)
+
+        def _replace_marker(match: re.Match) -> str:
+            raw_nums = match.group(1)
+            nums = [int(n.strip()) for n in raw_nums.split(",") if n.strip().isdigit()]
+            valid = [n for n in nums if n in valid_numbers]
+            if not valid:
+                return ""
+            if len(valid) == len(nums) and len(valid) == 1:
+                return f"[{valid[0]}]"
+            return "".join(f"[{n}]" for n in valid)
+
+        part = re.sub(r"(?<![a-zA-Z0-9_])\[(\d+(?:\s*,\s*\d+)*)\]", _replace_marker, part)
+        # Normalize double spaces and space before punctuation created by removed markers
+        part = re.sub(r"  +", " ", part)
+        part = re.sub(r" +([，。！？,.!?])", r"\1", part)
+        parts[i] = part
+
+    return "".join(parts).strip()
 
 
 def verify_citations(
     answer: str,
     chunks: List[Dict[str, Any]],
+    snippet_chars: int = 200,
 ) -> Tuple[str, List[Dict[str, Any]], bool]:
     """Validate model citations against retrieved chunks (1-indexed).
 
@@ -75,7 +114,7 @@ def verify_citations(
                 "document": chunk.get("document_filename") or chunk.get("document", ""),
                 "page": chunk.get("page"),
                 "heading": chunk.get("heading"),
-                "snippet": chunk.get("content", "")[:200],
+                "snippet": chunk.get("content", "")[:snippet_chars],
             })
 
     cleaned_answer = clean_answer_citations(answer, valid_numbers)

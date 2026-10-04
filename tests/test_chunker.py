@@ -37,28 +37,58 @@ RRF 算法将两路检索结果按排名倒数进行融合计算，k=60。
 
 
 def test_chunk_size_and_overlap():
-    """Verify chunking bounds and overlap preservation on long paragraphs."""
-    # Generate 1200 characters of text
-    sentence = "PostgreSQL 的 pgvector 扩展提供了高效的向量近似最近邻检索能力。"
-    long_text = sentence * 30  # ~1140 characters
+    """Verify chunking bounds and genuine overlap preservation on non-periodic technical text."""
+    # Build non-periodic text with distinct numbered sections to prevent cyclic false positives
+    sentences = [
+        f"第{i:02d}项核心设计要点：详细阐述了在系统面对高并发和网络分区场景下，如何保证数据持久化存储与缓存失效机制的一致性原则。"
+        for i in range(1, 25)
+    ]
+    non_periodic_text = "".join(sentences)
 
-    chunks = chunk_text(long_text, chunk_size=400, chunk_overlap=50)
-    assert len(chunks) > 1
+    chunks = chunk_text(non_periodic_text, chunk_size=300, chunk_overlap=50)
+    assert len(chunks) >= 3
 
-    # Verify indices are monotonically increasing
+    # Verify indices and chunk size upper bounds
     for i, c in enumerate(chunks):
         assert c.idx == i
-        assert len(c.content) <= 500  # Within tolerance
+        assert len(c.content) <= 350
 
-    # Verify overlap exists between consecutive chunks
-    overlap_found = False
+    # Strict overlap assertion: each adjacent pair must share genuine trailing/leading text
     for i in range(len(chunks) - 1):
-        # The start of chunks[i+1] should share some text with the end of chunks[i]
-        c1_tail = chunks[i].content[-40:]
-        if any(c1_tail[j:j+15] in chunks[i+1].content for j in range(len(c1_tail) - 15)):
-            overlap_found = True
-            break
-    assert overlap_found
+        prev_tail = chunks[i].content[-35:]
+        next_head = chunks[i + 1].content[:80]
+        # At least a 20-character sub-slice of prev chunk tail must appear in next chunk head
+        shared = any(prev_tail[j : j + 20] in next_head for j in range(len(prev_tail) - 19))
+        assert shared, f"No overlap found between chunk {i} tail and chunk {i+1} head"
+
+
+def test_markdown_code_fence_ignores_headings():
+    """Verify code comments inside markdown code blocks are not treated as section headings."""
+    content = """# 架构总览
+
+系统总体设计如下。
+
+```python
+# 这是一个 Python 代码内部注释，不应当被解析为 H1 标题
+def configure_system():
+    # 另一个内部注释
+    return True
+```
+
+## 数据持久化
+
+持久化层采用 PostgreSQL。
+"""
+    chunks = chunk_markdown(content, chunk_size=400, chunk_overlap=40)
+    headings = [c.heading for c in chunks if c.heading]
+
+    assert "架构总览" in headings
+    assert "架构总览 > 数据持久化" in headings
+    # Must NOT have created a heading from python code comments
+    assert not any("注释" in h for h in headings)
+    # The code comment must remain as part of chunk content
+    all_content = "\n".join(c.content for c in chunks)
+    assert "# 这是一个 Python 代码内部注释" in all_content
 
 
 def test_empty_or_whitespace_text():

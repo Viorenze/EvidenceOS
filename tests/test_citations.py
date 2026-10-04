@@ -11,6 +11,10 @@ def test_extract_citation_numbers():
     assert extract_citation_numbers("") == []
     assert extract_citation_numbers("没有任何引用") == []
     assert extract_citation_numbers("根据文档 [1] 以及 [2]，结果如下 [1]。") == [1, 2]
+    assert extract_citation_numbers("支持中文全角括号【1】和组合引用 [2, 3]") == [1, 2, 3]
+    assert extract_citation_numbers("中文组合【1, 2】") == [1, 2]
+    # Code subscript data[0] or arr[1] should not be extracted as citations
+    assert extract_citation_numbers("访问元素 data[0] 与 arr[10]") == []
     assert extract_citation_numbers("多位数字 [10] 和 [5]") == [10, 5]
 
 
@@ -18,11 +22,35 @@ def test_clean_answer_citations_removes_illegal_markers():
     text = "FastAPI 提供依赖注入 [1]，同时支持量子计算 [99] 和未验证引用 [0]。"
     valid_numbers = {1}
     cleaned = clean_answer_citations(text, valid_numbers)
-    # [1] is preserved, [99] and [0] are removed cleanly
     assert "[1]" in cleaned
     assert "[99]" not in cleaned
     assert "[0]" not in cleaned
     assert "FastAPI 提供依赖注入 [1]，同时支持量子计算 和未验证引用。" in cleaned
+
+
+def test_clean_answer_citations_preserves_code_and_subscripts():
+    text = """在 Python 中，通过 `data[0]` 访问首个元素。
+
+代码示例：
+```python
+    def get_first(items):
+        return items[0]
+```
+
+经官方文档验证有效 [1]，无效标注 [99]。
+"""
+    valid_numbers = {1}
+    cleaned = clean_answer_citations(text, valid_numbers)
+
+    # 1. Variable subscript data[0] in inline code and items[0] in code block preserved
+    assert "`data[0]`" in cleaned
+    assert "items[0]" in cleaned
+    # 2. Indentation inside code block preserved (not collapsed to single space)
+    assert "    def get_first(items):" in cleaned
+    assert "        return items[0]" in cleaned
+    # 3. Valid citation retained, illegal citation removed
+    assert "[1]" in cleaned
+    assert "[99]" not in cleaned
 
 
 def test_clean_answer_citations_empty_valid():

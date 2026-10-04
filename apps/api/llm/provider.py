@@ -62,11 +62,16 @@ class OpenAILLMProvider(LLMProvider):
         api_key: str,
         model: str,
         timeout: float = 30.0,
+        transport: Optional[httpx.BaseTransport] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
+        self.transport = transport
+
+    def _get_client(self) -> httpx.Client:
+        return httpx.Client(timeout=self.timeout, transport=self.transport)
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -81,11 +86,19 @@ class OpenAILLMProvider(LLMProvider):
             "messages": messages,
             "temperature": temperature,
         }
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(url, json=payload, headers=self._get_headers())
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+        try:
+            with self._get_client() as client:
+                resp = client.post(url, json=payload, headers=self._get_headers())
+                resp.raise_for_status()
+                data = resp.json()
+                choices = data.get("choices")
+                if not choices:
+                    raise RuntimeError("LLM response contains empty choices")
+                return choices[0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"LLM API returned HTTP error {e.response.status_code}: {e.response.text}") from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"LLM API request failed: {e}") from e
 
     def structured_output(
         self, messages: List[Dict[str, str]], schema: Type[T], temperature: float = 0.0
@@ -113,14 +126,26 @@ class OpenAILLMProvider(LLMProvider):
             "response_format": {"type": "json_object"},
         }
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(url, json=payload, headers=self._get_headers())
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
+        try:
+            with self._get_client() as client:
+                resp = client.post(url, json=payload, headers=self._get_headers())
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"LLM API returned HTTP error {e.response.status_code}: {e.response.text}") from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"LLM API request failed: {e}") from e
 
         clean_content = _clean_json_markdown(content)
-        parsed_dict = json.loads(clean_content)
-        return schema.model_validate(parsed_dict)
+        try:
+            parsed_dict = json.loads(clean_content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"LLM failed to output valid JSON: {clean_content[:200]}") from e
+
+        try:
+            return schema.model_validate(parsed_dict)
+        except Exception as e:
+            raise ValueError(f"LLM output failed schema validation for {schema.__name__}: {e}") from e
 
     def stream_generate(
         self, messages: List[Dict[str, str]], temperature: float = 0.0
@@ -132,23 +157,31 @@ class OpenAILLMProvider(LLMProvider):
             "temperature": temperature,
             "stream": True,
         }
-        with httpx.Client(timeout=self.timeout) as client:
-            with client.stream("POST", url, json=payload, headers=self._get_headers()) as resp:
-                resp.raise_for_status()
-                for line in resp.iter_lines():
-                    if not line:
-                        continue
-                    if line.startswith("data: "):
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk_data = json.loads(data_str)
-                            delta = chunk_data["choices"][0]["delta"]
-                            if "content" in delta and delta["content"]:
-                                yield delta["content"]
-                        except json.JSONDecodeError:
+        try:
+            with self._get_client() as client:
+                with client.stream("POST", url, json=payload, headers=self._get_headers()) as resp:
+                    resp.raise_for_status()
+                    for line in resp.iter_lines():
+                        if not line:
                             continue
+                        if line.startswith("data: "):
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk_data = json.loads(data_str)
+                                choices = chunk_data.get("choices")
+                                if choices and len(choices) > 0:
+                                    delta = choices[0].get("delta", {})
+                                    content = delta.get("content")
+                                    if content:
+                                        yield content
+                            except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                                continue
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"LLM stream returned HTTP error {e.response.status_code}: {e.response.text}") from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"LLM stream request failed: {e}") from e
 
 
 class FakeLLMProvider(LLMProvider):

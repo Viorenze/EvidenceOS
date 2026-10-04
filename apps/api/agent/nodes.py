@@ -240,7 +240,11 @@ class AgentNodes:
         chunks = state.get("chunks", [])
         current_retries = state.get("generate_retries", 0)
 
-        cleaned_answer, valid_citations, is_valid = verify_citations(answer, chunks)
+        cleaned_answer, valid_citations, is_valid = verify_citations(
+            answer,
+            chunks,
+            snippet_chars=getattr(self.settings, "citation_snippet_chars", 200),
+        )
 
         steps = list(state.get("steps", []))
 
