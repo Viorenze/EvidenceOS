@@ -49,6 +49,7 @@ EvidenceOS 采用 pgvector 向量检索与 jieba 全文检索。
 
 系统使用 Hit@5 与 Citation Precision 进行量化对比。
 """.encode("utf-8")
+    target_query = "系统使用 Hit@5 与 Citation Precision 进行量化对比。"
     try:
         # 1. Ingestion
         processed_doc = process_document(
@@ -60,18 +61,19 @@ EvidenceOS 采用 pgvector 向量检索与 jieba 全文检索。
         assert processed_doc.status == "ready"
         assert processed_doc.n_chunks >= 2
 
-        # 2. Vector search
-        results = vector_search(db=db, query="评测指标", k=5)
+        # 2. Vector search (exact content query matches deterministically with fake embedding)
+        results = vector_search(db=db, query=target_query, k=5)
         assert len(results) > 0
-        assert any(r["document_id"] == doc_id for r in results)
-
-        # 3. Cascade deletion
-        db.delete(processed_doc)
-        db.commit()
-
-        # Verify chunks are cascade deleted
-        remaining_chunks = db.query(Chunk).filter(Chunk.document_id == doc_id).all()
-        assert len(remaining_chunks) == 0
+        assert results[0]["document_id"] == doc_id
+        assert results[0]["score"] > 0.99  # Identical text yields cosine similarity ~1.0
 
     finally:
+        # 3. Always clean up test document and verify cascade delete
+        doc_in_db = db.query(Document).filter(Document.id == doc_id).first()
+        if doc_in_db:
+            db.delete(doc_in_db)
+            db.commit()
+
+        remaining_chunks = db.query(Chunk).filter(Chunk.document_id == doc_id).all()
+        assert len(remaining_chunks) == 0
         db.close()
