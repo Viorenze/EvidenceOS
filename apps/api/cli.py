@@ -96,6 +96,31 @@ def cmd_list(args):
         db.close()
 
 
+def cmd_ask(args):
+    """Execute LangGraph agent for a user question."""
+    from apps.api.agent.runner import run_agent
+
+    db = SessionLocal()
+    try:
+        print(f"[EvidenceOS] Asking agent: '{args.question}'...\n")
+        res = run_agent(db=db, question=args.question)
+        print("=== Agent Execution Steps ===")
+        for s in res.steps:
+            print(f"- [{s['node']}] ({s['status']}) {s['detail']}")
+        print("\n=== Answer ===")
+        print(res.answer)
+        print(f"\nRefused: {res.refused}")
+        print(f"Latency: {res.latency_ms:.2f} ms")
+        print(f"Run ID: {res.run_id}")
+        if res.citations:
+            print("\n=== Verified Citations ===")
+            for c in res.citations:
+                print(f"[{c['n']}] {c['document']} (page {c.get('page')}, heading '{c.get('heading')}')")
+                print(f"    Snippet: {c['snippet'][:100]}...")
+    finally:
+        db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="EvidenceOS CLI tool")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +137,11 @@ def main():
     p_search.add_argument("-k", type=int, default=5, help="Number of results to retrieve (default: 5)")
     p_search.set_defaults(func=cmd_search)
 
+    # Ask
+    p_ask = subparsers.add_parser("ask", help="Ask a question through the LangGraph Agent")
+    p_ask.add_argument("question", help="Question to ask")
+    p_ask.set_defaults(func=cmd_ask)
+
     # List
     p_list = subparsers.add_parser("list", help="List ingested documents")
     p_list.set_defaults(func=cmd_list)
@@ -122,3 +152,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -17,6 +17,8 @@ dependencies = [
     "pypdf>=4.3.0",
     "sentence-transformers>=3.0.1",
     "numpy>=1.26.0",
+    "langgraph>=1.2.12",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
