@@ -5,8 +5,8 @@ from apps.api.cli import main
 import pytest
 
 
-def test_cli_search_output(capsys):
-    """Verify CLI search command executes and prints formatted results."""
+def test_cli_search_vector_output(capsys):
+    """Verify CLI search command with --mode vector executes and prints formatted results."""
     mock_results = [
         {
             "chunk_id": "c1",
@@ -19,13 +19,38 @@ def test_cli_search_output(capsys):
 
     with patch("apps.api.cli.SessionLocal"), \
          patch("apps.api.cli.vector_search", return_value=mock_results):
-        with patch("sys.argv", ["cli.py", "search", "技术选型", "-k", "3"]):
+        with patch("sys.argv", ["cli.py", "search", "技术选型", "--mode", "vector", "-k", "3"]):
             main()
 
     captured = capsys.readouterr()
-    assert "Score: 0.8800" in captured.out
+    assert "0.880000" in captured.out
     assert "PRD.md" in captured.out
     assert "技术选型" in captured.out
+
+
+def test_cli_search_hybrid_output(capsys):
+    """Verify CLI search command with default hybrid mode executes and prints RRF ranks."""
+    mock_results = [
+        {
+            "chunk_id": "c2",
+            "document": "PRD.md",
+            "heading": "混合检索",
+            "content": "RRF 融合向量与全文检索",
+            "score": 0.0325,
+            "vector_rank": 1,
+            "fulltext_rank": 2,
+        }
+    ]
+
+    with patch("apps.api.cli.SessionLocal"), \
+         patch("apps.api.cli.hybrid_search", return_value=mock_results):
+        with patch("sys.argv", ["cli.py", "search", "混合检索", "-k", "3"]):
+            main()
+
+    captured = capsys.readouterr()
+    assert "0.032500" in captured.out
+    assert "Ranks: [Vec: 1, FT: 2]" in captured.out
+    assert "PRD.md" in captured.out
 
 
 def test_cli_list_output(capsys):

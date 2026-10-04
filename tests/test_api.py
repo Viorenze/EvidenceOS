@@ -155,3 +155,41 @@ def test_search_api_endpoint(client: TestClient):
             assert data["results"][0]["score"] == 0.92
         finally:
             app.dependency_overrides.pop(get_db, None)
+
+
+def test_search_api_hybrid_endpoint(client: TestClient):
+    """Verify POST /api/search with mode=hybrid executes hybrid search."""
+    from unittest.mock import patch, MagicMock
+    from apps.api.db.session import get_db
+    from apps.api.main import app
+
+    mock_db = MagicMock()
+    mock_results = [
+        {
+            "chunk_id": "c2",
+            "document_id": "d2",
+            "document": "hybrid.md",
+            "idx": 1,
+            "page": None,
+            "heading": "H2",
+            "content": "混合检索结果",
+            "score": 0.032,
+            "vector_rank": 1,
+            "fulltext_rank": 2,
+        }
+    ]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("apps.api.routers.search.hybrid_search", return_value=mock_results):
+        try:
+            response = client.post("/api/search", json={"query": "混合", "mode": "hybrid", "k": 5})
+            assert response.status_code == 200
+            data = response.json()
+            assert data["query"] == "混合"
+            assert data["mode"] == "hybrid"
+            assert len(data["results"]) == 1
+            assert data["results"][0]["score"] == 0.032
+            assert data["results"][0]["vector_rank"] == 1
+            assert data["results"][0]["fulltext_rank"] == 2
+        finally:
+            app.dependency_overrides.pop(get_db, None)

@@ -44,12 +44,20 @@ def cmd_ingest(args):
         db.close()
 
 
+from apps.api.rag.retrieval import hybrid_search, vector_search
+
+
 def cmd_search(args):
-    """Execute dense vector retrieval and print ranked results."""
+    """Execute vector or hybrid retrieval and print ranked results."""
     db = SessionLocal()
+    mode = getattr(args, "mode", "hybrid")
     try:
-        print(f"[EvidenceOS] Running vector search for query: '{args.query}' (top_k={args.k})...\n")
-        results = vector_search(db=db, query=args.query, k=args.k)
+        print(f"[EvidenceOS] Running {mode} search for query: '{args.query}' (top_k={args.k})...\n")
+        if mode == "vector":
+            results = vector_search(db=db, query=args.query, k=args.k)
+        else:
+            results = hybrid_search(db=db, query=args.query, top_k=args.k)
+
         if not results:
             print("No matching chunks found.")
             return
@@ -58,7 +66,13 @@ def cmd_search(args):
             heading = r.get("heading") or "No heading"
             score = r.get("score", 0.0)
             doc_name = r.get("document", "Unknown")
-            print(f"[{i}] Score: {score:.4f} | Document: {doc_name} | Heading: {heading}")
+            extra = ""
+            if mode == "hybrid":
+                vr = r.get("vector_rank")
+                fr = r.get("fulltext_rank")
+                extra = f" | Ranks: [Vec: {vr or '-'}, FT: {fr or '-'}]"
+
+            print(f"[{i}] Score: {score:.6f}{extra} | Doc: {doc_name} | Heading: {heading}")
             print(f"    Snippet: {r['content'][:150].strip()}...")
             print()
     finally:
@@ -92,8 +106,9 @@ def main():
     p_ingest.set_defaults(func=cmd_ingest)
 
     # Search
-    p_search = subparsers.add_parser("search", help="Execute vector search for a query")
+    p_search = subparsers.add_parser("search", help="Execute vector or hybrid search for a query")
     p_search.add_argument("query", help="Search query string")
+    p_search.add_argument("--mode", choices=["vector", "hybrid"], default="hybrid", help="Search mode (default: hybrid)")
     p_search.add_argument("-k", type=int, default=5, help="Number of results to retrieve (default: 5)")
     p_search.set_defaults(func=cmd_search)
 

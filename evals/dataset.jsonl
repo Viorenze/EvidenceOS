@@ -1,0 +1,25 @@
+{"id": "q01", "type": "answerable", "question": "FastAPI 是基于哪些底层库构建的？", "gold_doc": "fastapi_overview.md", "gold_snippet": "基于 Starlette 和 Pydantic 构建"}
+{"id": "q02", "type": "answerable", "question": "FastAPI 数据校验失败时会返回什么 HTTP 状态码？", "gold_doc": "fastapi_overview.md", "gold_snippet": "返回 422 Unprocessable Entity 状态码"}
+{"id": "q03", "type": "answerable", "question": "FastAPI 使用什么关键字在函数参数中声明依赖注入？", "gold_doc": "fastapi_overview.md", "gold_snippet": "使用 `fastapi.Depends` 声明"}
+{"id": "q04", "type": "answerable", "question": "FastAPI 的依赖项是否支持复用和缓存？", "gold_doc": "fastapi_overview.md", "gold_snippet": "支持层次化组合与缓存复用（`use_cache=True`）"}
+{"id": "q05", "type": "answerable", "question": "FastAPI 提供了哪个类用于在响应返回后执行后台耗时操作？", "gold_doc": "fastapi_overview.md", "gold_snippet": "提供了轻量级的 `BackgroundTasks` 类"}
+{"id": "q06", "type": "answerable", "question": "FastAPI 原生支持什么协议运行并发？", "gold_doc": "fastapi_overview.md", "gold_snippet": "基于标准 ASGI 协议运行"}
+{"id": "q07", "type": "answerable", "question": "在 FastAPI 中如何向后台任务注册待执行的函数？", "gold_doc": "fastapi_overview.md", "gold_snippet": "调用 `background_tasks.add_task(func, *args, **kwargs)` 注册任务"}
+{"id": "q08", "type": "answerable", "question": "在 PostgreSQL 中使用 pgvector 扩展前需要执行什么初始化 SQL 语句？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "CREATE EXTENSION IF NOT EXISTS vector;"}
+{"id": "q09", "type": "answerable", "question": "pgvector 中表示余弦距离的运算符是什么？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "`<=>`：余弦距离（Cosine Distance）"}
+{"id": "q10", "type": "answerable", "question": "pgvector 中欧氏距离的计算算子是什么？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "`<->`：欧氏距离（L2 Distance）"}
+{"id": "q11", "type": "answerable", "question": "pgvector 中内积负值检索的算子是什么？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "`<#>`：内积负值（Negative Inner Product）"}
+{"id": "q12", "type": "answerable", "question": "HNSW 索引建立时控制每个节点最大双向链接数的参数是什么？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "`m`（每个节点的最大双向链接数，默认 16）"}
+{"id": "q13", "type": "answerable", "question": "HNSW 索引构建时的搜索动态候选列表大小参数是什么？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "`ef_construction`（构建时的搜索动态候选列表大小，默认 64）"}
+{"id": "q14", "type": "answerable", "question": "PostgreSQL 中文全文检索推荐将切分后的词串保存在哪个字段？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "将文本切分成空格隔开的词串存入 `content_seg` 字段"}
+{"id": "q15", "type": "answerable", "question": "PostgreSQL 中通过哪个函数基于词覆盖密度进行全文相关度打分？", "gold_doc": "postgresql_pgvector.md", "gold_snippet": "配合 `ts_rank_cd` 函数基于词覆盖密度进行词法相关度打分"}
+{"id": "q16", "type": "answerable", "question": "稠密向量检索在技术文档问答场景中有哪些局限性？", "gold_doc": "rag_hybrid_retrieval.md", "gold_snippet": "对于精确的技术专有名词、配置变量（如 `EMBEDDING_PROVIDER`）、版本号和代码符号缺乏精确匹配能力"}
+{"id": "q17", "type": "answerable", "question": "稀疏全文检索面临的主要短板是什么？", "gold_doc": "rag_hybrid_retrieval.md", "gold_snippet": "无法应对词汇不匹配问题（Vocabulary Mismatch）和意图泛化"}
+{"id": "q18", "type": "answerable", "question": "RRF 互惠排名融合算法在学术与工业界推荐的平滑常数 k 是多少？", "gold_doc": "rag_hybrid_retrieval.md", "gold_snippet": "业界最佳实践与学术研究通常固定设为 60"}
+{"id": "q19", "type": "answerable", "question": "RAG 技术文档分块推荐的目标中文字符数与重叠大小是多少？", "gold_doc": "rag_hybrid_retrieval.md", "gold_snippet": "目标分块大小通常设定为 400 到 500 个中文字符，相邻分块间保留约 50 个字符的滑动重叠"}
+{"id": "q20", "type": "answerable", "question": "为什么技术文档分块必须保留 Markdown 标题层级面包屑？", "gold_doc": "rag_hybrid_retrieval.md", "gold_snippet": "将标题上下文绑定在每个分块元数据中，防止孤立代码段失去语义背景"}
+{"id": "q21", "type": "unanswerable", "question": "FastAPI 如何原生配置接入 Apollo GraphQL 订阅服务器？"}
+{"id": "q22", "type": "unanswerable", "question": "pgvector 如何在 Redis 集群中配置跨机房双向复制与持久化？"}
+{"id": "q23", "type": "unanswerable", "question": "如何使用 Neo4j 图数据库的 Cypher 语言实现基于图的知识推理？"}
+{"id": "q24", "type": "unanswerable", "question": "Elasticsearch 集群在大规模节点掉线时的自动分片再平衡策略是什么？"}
+{"id": "q25", "type": "unanswerable", "question": "PostgreSQL 如何通过 Debezium 和 Kafka Connect 原生捕获 CDC 变更日志？"}

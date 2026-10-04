@@ -1,4 +1,4 @@
-"""Integration test: upload -> chunk -> jieba -> embed -> database -> vector search -> cascade delete.
+"""Integration test: upload -> chunk -> jieba -> embed -> database -> vector / fulltext / hybrid search -> cascade delete.
 
 Automatically runs when PostgreSQL is available, and cleanly skips if database is offline.
 """
@@ -10,7 +10,7 @@ from apps.api.config import get_settings
 from apps.api.db.models import Chunk, Document
 from apps.api.db.session import engine, init_db, SessionLocal
 from apps.api.rag.ingestion import process_document
-from apps.api.rag.retrieval import vector_search
+from apps.api.rag.retrieval import fulltext_search, hybrid_search, vector_search
 
 
 def is_postgres_available() -> bool:
@@ -25,8 +25,7 @@ def is_postgres_available() -> bool:
 
 @pytest.mark.skipif(not is_postgres_available(), reason="PostgreSQL + pgvector is not currently reachable")
 def test_live_ingest_search_and_delete_cycle():
-    """Live database test: end-to-end ingestion and vector search in pgvector."""
-    # Ensure tables and extensions exist
+    """Live database test: end-to-end ingestion, full-text search, vector search, and RRF hybrid search in PostgreSQL."""
     init_db()
 
     db = SessionLocal()
@@ -62,13 +61,26 @@ EvidenceOS 采用 pgvector 向量检索与 jieba 全文检索。
         assert processed_doc.n_chunks >= 2
 
         # 2. Vector search (exact content query matches deterministically with fake embedding)
-        results = vector_search(db=db, query=target_query, k=5)
-        assert len(results) > 0
-        assert results[0]["document_id"] == doc_id
-        assert results[0]["score"] > 0.99  # Identical text yields cosine similarity ~1.0
+        vec_results = vector_search(db=db, query=target_query, k=5)
+        assert len(vec_results) > 0
+        assert vec_results[0]["document_id"] == doc_id
+        assert vec_results[0]["score"] > 0.99  # Identical text yields cosine similarity ~1.0
+
+        # 3. Full-text search (lexical match on jieba tokens: 'Citation', 'Precision')
+        ft_results = fulltext_search(db=db, query="Citation Precision", k=5)
+        assert len(ft_results) > 0
+        assert any(r["document_id"] == doc_id for r in ft_results)
+        assert ft_results[0]["score"] > 0.0
+
+        # 4. Hybrid search with RRF fusion
+        hy_results = hybrid_search(db=db, query=target_query, top_k=5)
+        assert len(hy_results) > 0
+        assert hy_results[0]["document_id"] == doc_id
+        assert "rrf_score" in hy_results[0]
+        assert hy_results[0]["score"] > 0.0
 
     finally:
-        # 3. Always clean up test document and verify cascade delete
+        # 5. Always clean up test document and verify cascade delete
         doc_in_db = db.query(Document).filter(Document.id == doc_id).first()
         if doc_in_db:
             db.delete(doc_in_db)
