@@ -5,7 +5,7 @@
 [![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014-black.svg)](https://nextjs.org/)
 [![PostgreSQL + pgvector](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Tests](https://img.shields.io/badge/Tests-82%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-82%20passed%2C%202%20skipped-brightgreen.svg)]()
 
 > **EvidenceOS** 是一个面向技术文档、具备严谨证据审查与**服务端引用核对**机制的端到端 AI 知识库问答系统。
 > 核心原则：**宽度精简，深度聚焦——混合检索、有条件循环 Agent、服务端引用核验、可复现基准评测。**
@@ -46,7 +46,7 @@ flowchart TD
     end
 
     subgraph Client["Web 前端交互 (Next.js 14)"]
-        stream --> ui["Chat 页面<br/>1. 实时 LangGraph 思考步骤面板<br/>2. 逐 Token 流式答案渲染<br/>3. 点击 [n] 引用徽标打开 ChunkDrawer 原文对账"]
+        stream --> ui["Chat 页面<br/>1. 实时 LangGraph 思考步骤面板<br/>2. 逐 Token 流式答案渲染<br/>3. 点击 [n] 引用徽标打开 ChunkModal 对话框原文对账"]
     end
 ```
 
@@ -69,19 +69,20 @@ flowchart TD
 5. **服务端引用强校验（Server-Side Citation Verification）**：
    - 绝不信任 LLM 随意生成的引用标记。服务端逐一提取并验证 `[n]`、`【n】` 或 `[n, m]` 是否严格落在本次检索到的切片范围内；
    - 自动过滤越界标记（如不存在的 `[99]`），且保护代码中的数组下标（如 `data[0]`）；
-   - 每一个引用徽标均绑定真实切片 ID，支持前端一键展开查看完整原始切片与章节路径。
+   - 每一个引用徽标均绑定真实切片 ID，支持前端一键展开查看完整原始切片与章节路径；
+   - **机制边界说明**：服务端引用校验验证的是引用标记与本次检索候选集的物理对应关系，不执行昂贵的自然语言推理（NLI）语义蕴含检验，不代表对每句话建立了绝对语义证明。
 6. **先校验后推流（Verify-then-Stream）SSE 架构**：
    - 执行阶段实时推送 `event: step` 暴露后台思考状态；
    - 完整生成并通过引用核验后，流式向客户端发送 `event: token`；
-   - 保证客户端呈现的内容所含引用标记经过服务端严格核验与清洗，避免向用户展示包含伪造越界引用的内容。
+   - **设计权衡**：系统接受较高的首字等待时间（TTFT，约等于整图执行耗时），以在答案推向客户端前完成服务端的引用有效性核验，防止向前端推送非法或悬空的引用标号，并在证据不足时受控拒答。该设计防止了悬空引用产生，但 LLM 生成本身并不具备确定性，亦不保证回答中所有陈述在语义层面的绝对无误。
 
 ---
 
 ## 3. 真实评测基准数据 (D5 Benchmark Report)
 
-> **数据来源**：本基准测试数据全部来自 `evals/runner.py` 在真实 WSL2 PostgreSQL + pgvector + 真实 DeepSeek 模型上的完整运行结果（绝无手工虚构或占位数据），完整报告详见 [`reports/eval.md`](file:///g:/EvidenceOS/reports/eval.md)。
-> **评测语料**：`evals/corpus/` 3 篇真实技术文档（FastAPI, pgvector, RAG Hybrid），共 15 个切片。
-> **评测题目**：`evals/dataset.jsonl` 共 25 题（20 道可回答题，5 道不可回答题）。
+> **数据来源**：本基准测试数据全部来自 `evals/runner.py` 在真实 WSL2 PostgreSQL + pgvector + 真实 DeepSeek 模型上的完整运行结果（绝无手工虚构或占位数据），完整报告详见 [`reports/eval.md`](reports/eval.md)。
+> **评测语料**：`evals/corpus/` 3 篇受控技术文档（基于 FastAPI, pgvector, RAG 核心主题合成整理），共 15 个切片。
+> **评测题目**：`evals/dataset.jsonl` 共 25 题（配套评测题集，含 20 道可回答题与 5 道显式不相关题）。
 
 | 评测指标 (Metric) | 稠密向量 (Vector-Only) | 混合检索 (Hybrid RRF) | 智能体回路 (Hybrid + Agent) |
 | :--- | :---: | :---: | :---: |
@@ -94,7 +95,9 @@ flowchart TD
 | **Latency p95 (长尾端到端耗时)** | 13.56 ms | 18.14 ms | 12,418.67 ms |
 
 ### 评测结果核心发现与指标说明：
-1. **Hit@5 饱和性**：在当前受控的 3 篇文档、15 个分块的小型语料规模下，三种模式在 20 道可回答题目上的 Hit@5 均达到 100.0%，说明该指标在当前规模语料库中已饱和，没有显著区分度。
+1. **Hit@5 饱和性与混合检索定位**：
+   - 在当前受控的 3 篇文档、15 个分块的小型语料规模下，三种模式在 20 道可回答题目上的 Hit@5 均达到 100.0%（Hit@1 均为 90.0%）。
+   - 因为语料规模小且召回打满，发生了天花板饱和效应，当前基准测试尚未在数据上建立混合检索优于纯向量检索的准确率优势；混合检索的核心价值在于工程设计上同时融合语义泛化（向量）与专有名词/配置精确匹配（全文）的双路信号。
 2. **Gold-snippet Citation Precision (96.7%)**：
    - 衡量模型最终回答中**所有通过服务端校验的合法引用切片**中，实际包含标注 `gold_snippet` 的比例；
    - 在 20 道可回答题目中，19 道题目的精度为 100%，唯独 **`q15`**（*PostgreSQL 中通过哪个函数基于词覆盖密度进行全文相关度打分？*）单题精度为 33.3%（1/3）：模型回答正确引用了包含答案的切片 `[1]`（`ts_rank_cd`），同时综合引用了另外 2 个阐述稀疏检索机制与 RRF 算法的切片 `[3]` 和 `[4]`，宏平均统计为 96.7%。
@@ -109,7 +112,7 @@ flowchart TD
 
 ## 4. 快速开始与可复现指南 (Quick Start)
 
-本项目支持一键启动与本地离线/在线双模测试。
+本项目支持本地 Docker 数据库基础设施一键启动，配合 uv 与 npm 本地运行全栈应用，并提供离线单元测试（全量 Mock 确定性执行）与在线基准测试（连接真实 LLM）双模验证。
 
 ### 1. 准备环境与依赖
 * 安装 [Docker Desktop](https://www.docker.com/)
@@ -118,7 +121,7 @@ flowchart TD
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-repo/EvidenceOS.git
+git clone <repository-url>
 cd EvidenceOS
 
 # 复制环境变量配置
@@ -164,11 +167,11 @@ npm run dev
 
 打开浏览器访问 `http://localhost:3000`：
 * **Documents 页面 (`/documents`)**：上传技术文档、查看分块入库进度及分块数；
-* **Chat 页面 (`/`)**：提问、查看实时思考回路展开、流式接收答案、点击 `[n]` 徽标在右侧抽屉查看原始切片对账。
+* **Chat 页面 (`/`)**：提问、查看实时思考回路展开、流式接收答案、点击 `[n]` 徽标在 ChunkModal 对话框查看原始切片对账。
 
 ### 5. 运行完整自动化测试套件
 ```bash
-# 运行全量 82 个单元与集成测试 (100% 离线确定性执行，无需调用外网 API)
+# 运行自动化测试套件 (82 passed, 2 skipped；82 个单元测试完全离线确定性执行，2 个集成测试在无本地数据库时自动跳过)
 make test
 # 或 uv run pytest -v
 ```
@@ -190,14 +193,14 @@ EvidenceOS/
 │   │   └── main.py              # FastAPI 应用入口与中间件配置
 │   └── web/                     # Next.js 14 前端单页应用
 │       ├── src/app/             # App Router 页面 (chat 页面, documents 页面)
-│       └── src/components/      # UI 组件 (Header, ChunkModal 抽屉, SSE 客户端流解析器)
+│       └── src/components/      # UI 组件 (Header, ChunkModal 对话框, SSE 客户端流解析器)
 ├── evals/                       # 评测基准
-│   ├── corpus/                  # 3 篇开放技术文档语料 (FastAPI, pgvector, RAG Hybrid)
-│   ├── dataset.jsonl            # 25 道手工标注评测问题 (20 道可回答 + 5 道不可回答)
+│   ├── corpus/                  # 3 篇受控技术文档语料 (FastAPI, pgvector, RAG Hybrid)
+│   ├── dataset.jsonl            # 25 道受控评测问题 (20 道可回答 + 5 道不可回答)
 │   └── runner.py                # 评测执行脚本 (计算 Hit@5, Citation Precision, Refusal Acc, p50/p95)
 ├── reports/
 │   └── eval.md                  # D5 真实生成的基准评测报告
-├── tests/                       # 自动化测试套件 (82 passed)
+├── tests/                       # 自动化测试套件 (82 passed, 2 skipped)
 │   ├── test_agent.py            # Agent 条件边、节点及持久化测试 (解耦 Mock)
 │   ├── test_chat.py             # Chat SSE 协议与 Verify-then-Stream 测试
 │   ├── test_chunker.py          # 分块有效重叠与代码块保护测试
@@ -215,16 +218,18 @@ EvidenceOS/
 
 ## 6. 技术决策与权衡 (Design Decisions & Limitations)
 
-详见 [`docs/DECISIONS.md`](file:///g:/EvidenceOS/docs/DECISIONS.md)，核心面试阐述点：
+详见 [`docs/DECISIONS.md`](docs/DECISIONS.md)，核心面试阐述点：
 
 1. **单库架构优势（PostgreSQL + pgvector）**：
    - 避免独立向量数据库与关系数据库之间的双写不一致问题（孤儿向量）。删除文档时级联物理删除关联 Chunks；同时原生支持 GIN 全文检索与 HNSW 向量索引。
 2. **混合检索必要性（Hybrid + RRF）**：
-   - 纯稠密向量检索对于技术专有名词、配置常量（如 `EMBEDDING_PROVIDER`）、版本号和代码符号缺乏精确命中能力；jieba 分词 + Postgres tsvector 提供了强关键词召回，经 RRF 融合后互补效果显著。
+   - 纯稠密向量检索侧重语义相似度，全文检索（jieba + tsvector）侧重专有名词与精确符号匹配，RRF 提供无参数平滑融合。在当前 15-chunk 微型语料库中二者均发生 Hit@5 饱和，当前数据未直接证明精度差异，但架构上消除了单一检索通路的单点盲区。
 3. **Verify-then-Stream 权衡**：
-   - 核心系统承诺是“可核对引用，有据可依”。如果 LLM 边生成边直接推流，非法引用标记或生成幻觉会瞬间暴露给前端；通过在服务端等待生成完成、完成严格引用索引核验与清洗后，再流式推向客户端，以少量首字等待时间（TTFT）换取了引用可核准的确定性。
+   - 核心系统承诺是“可核对引用，有据可依”。如果 LLM 边生成边直接推流，非法或越界的引用标号会直接暴露给前端；系统接受较高的首字等待时间（TTFT，约等于整图执行耗时），在答案推向客户端前完成服务端的引用索引核对与清洗。此机制防止了悬空引用的产生，但不代表大模型生成本身具有确定性，亦不保证文本层面的绝对事实正确性。
 4. **引用核验范围边界（Non-Goal）**：
-   - 服务端引用校验保证引用索引严格落在本次检索到的切片范围内，剔除模型编造的越界标号，显著降低引用幻觉；但系统未运行昂贵的自然语言推理（NLI）语义蕴含模型，引用核验不代表语义层面的绝对无幻觉。
+   - 服务端引用校验保证引用索引严格落在本次检索到的切片范围内，剔除模型编造的越界标号，防止悬空引用；系统聚焦于引用编号与切片集合的物理对账，未运行昂贵的自然语言推理（NLI）语义蕴含模型，引用核验不代表对每个事实陈述提供了语义层面的真伪证明。
+5. **流式取消与 Abort 边界**：
+   - 前端点击 Stop 触发客户端 `AbortController`，立即断开 SSE 流并重置界面状态；后端检测到底层连接断开后终止后续 Agent 节点调度，但已发出的单次上游 LLM 阻塞式 HTTP 请求依赖网络返回或超时，不承诺物理中断外部模型提供商的后台算力计算。
 
 ---
 
@@ -237,9 +242,9 @@ EvidenceOS/
    - 切换至 `http://localhost:3000`，提问：`FastAPI 如何做依赖注入？`
    - 展示前端折叠面板动态展示 LangGraph 思考状态（`retrieve` → `grade: Sufficient: True` → `generate` → `verify_citations`）；
    - 展示答案逐字流式渲染，文末附带清晰的引用徽标 `[1]`；
-   - 点击徽标 `[1]`，右侧滑出 `ChunkDrawer` 原文抽屉，核对该引用的来源文件、章节面包屑（`FastAPI 核心技术指南 > 依赖注入系统`）以及完整切片文本。
+   - 点击徽标 `[1]`，弹出 `ChunkModal` 原文对话框，核对该引用的来源文件、章节面包屑（`FastAPI 核心技术指南 > 依赖注入系统`）以及完整切片文本。
 3. **第 3 分钟：不可回答问题的受控拒答与评测对账**
    - 提问超范围问题：`FastAPI 如何原生配置接入 Apollo GraphQL 订阅服务器？`
    - 观察思考面板展现 9 个步骤：第 1 次检索不足 → 第 1 次改写重试 → 第 2 次改写重试 → 最终触发 `refuse` 节点；
    - 页面渲染固定拒答文案，避免无据编造；
-   - 切换至终端执行 `make eval`，现场跑出三档对比数据，打开 [`reports/eval.md`](file:///g:/EvidenceOS/reports/eval.md) 结合 `q15` 案例解释指标定义与技术归因。
+   - 切换至终端执行 `make eval`，现场跑出三档对比数据，打开 [`reports/eval.md`](reports/eval.md) 结合 `q15` 案例解释指标定义与技术归因。

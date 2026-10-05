@@ -51,56 +51,94 @@ export default function ChatPage() {
           },
           onDone: (done) => {
             setDoneData(done);
-            setIsStreaming(false);
           },
           onError: (errMsg) => {
             setErrorMessage(errMsg);
-            setIsStreaming(false);
           },
         },
         controller.signal
       );
     } catch (err: any) {
       setErrorMessage(err.message || "流式传输异常");
+    } finally {
       setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
+    setIsStreaming(false);
   };
 
   /**
-   * Render answer text and turn [n] markers into clickable citation badges.
+   * Render answer text and turn valid [n] markers into clickable citation badges.
+   * Shields code fences and inline code, and ignores array/subscript notation like arr[1] or data[0].
    */
   const renderFormattedAnswer = (text: string) => {
     if (!text) return null;
 
-    // Split by citation markers like [1], [2]
-    const parts = text.split(/(\[\d+\])/g);
+    // 1. Split text into alternating prose and code blocks (fenced ```...``` or inline `...`)
+    const segments = text.split(/(```[\s\S]*?```|`[^`\n]+`)/g);
 
-    return parts.map((part, index) => {
-      const match = part.match(/^\[(\d+)\]$/);
-      if (match) {
-        const n = parseInt(match[1], 10);
-        const citation = citations.find((c) => c.n === n);
+    return segments.map((segment, segIdx) => {
+      // If segment is a fenced code block
+      if (segment.startsWith("```") && segment.endsWith("```")) {
+        const codeLines = segment.slice(3, -3).replace(/^\w*\n/, "");
         return (
-          <button
-            key={index}
-            onClick={() => {
-              if (citation) setSelectedChunkId(citation.chunk_id);
-            }}
-            title={citation ? `查看引用 [${n}]: ${citation.document} (点击对账原文)` : `引用 [${n}]`}
-            className="inline-flex items-center justify-center px-1.5 py-0.5 mx-0.5 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded transition transform hover:scale-105 align-baseline"
+          <pre
+            key={segIdx}
+            className="my-3 p-3 bg-slate-900 text-slate-100 rounded-lg text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed"
           >
-            [{n}]
-          </button>
+            <code>{codeLines}</code>
+          </pre>
         );
       }
-      return <span key={index}>{part}</span>;
+
+      // If segment is inline code
+      if (segment.startsWith("`") && segment.endsWith("`") && segment.length >= 2) {
+        const inlineCode = segment.slice(1, -1);
+        return (
+          <code
+            key={segIdx}
+            className="px-1.5 py-0.5 mx-0.5 bg-slate-100 text-slate-800 border border-slate-200 rounded text-xs font-mono"
+          >
+            {inlineCode}
+          </code>
+        );
+      }
+
+      // 2. In prose: match [n] not preceded by identifier/subscript characters (?<![a-zA-Z0-9_])
+      // Only match 1-indexed citations [1], [2], etc. (never [0])
+      const parts = segment.split(/(?<![a-zA-Z0-9_])(\[[1-9]\d*\])/g);
+
+      return (
+        <span key={segIdx}>
+          {parts.map((part, partIdx) => {
+            const match = part.match(/^\[([1-9]\d*)\]$/);
+            if (match) {
+              const n = parseInt(match[1], 10);
+              const citation = citations.find((c) => c.n === n);
+              if (citation) {
+                return (
+                  <button
+                    key={partIdx}
+                    onClick={() => setSelectedChunkId(citation.chunk_id)}
+                    title={`查看引用 [${n}]: ${citation.document} (点击对账原文)`}
+                    className="inline-flex items-center justify-center px-1.5 py-0.5 mx-0.5 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded transition transform hover:scale-105 align-baseline cursor-pointer"
+                  >
+                    [{n}]
+                  </button>
+                );
+              }
+            }
+            return <span key={partIdx}>{part}</span>;
+          })}
+        </span>
+      );
     });
   };
 

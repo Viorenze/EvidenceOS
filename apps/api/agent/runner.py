@@ -87,7 +87,7 @@ def run_agent(
     steps_list = list(final_state.get("steps") or [])
     is_refused = bool(final_state.get("refused", False))
 
-    # Best-effort persistence: database errors must not mask execution errors
+    # Persistence: database errors must not be swallowed into a fake success
     try:
         run_record = Run(
             id=run_id,
@@ -102,11 +102,13 @@ def run_agent(
         db.add(run_record)
         db.commit()
     except Exception as db_exc:
-        logger.warning("Failed to persist run record to database (best-effort): %s", db_exc)
+        logger.error("Failed to persist run record to database: %s", db_exc, exc_info=True)
         try:
             db.rollback()
         except Exception:
             pass
+        if execution_error is None:
+            raise RuntimeError(f"Database persistence failed: {db_exc}") from db_exc
 
     # If graph execution failed, re-raise original exception for upstream handling (e.g. SSE error event)
     if execution_error is not None:

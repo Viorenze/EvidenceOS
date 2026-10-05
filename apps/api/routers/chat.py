@@ -17,15 +17,16 @@ import logging
 import time
 import uuid
 from typing import Any, Dict, Iterator, List, Optional
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from apps.api.agent.graph import create_agent
 from apps.api.agent.state import AgentState
 from apps.api.config import Settings, get_settings
 from apps.api.db.models import Run
-from apps.api.db.session import SessionLocal
+from apps.api.db.session import SessionLocal, get_db
 from apps.api.llm.provider import LLMProvider, get_llm_provider
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def stream_chat_events(
     question: str,
     settings: Optional[Settings] = None,
     llm: Optional[LLMProvider] = None,
+    db: Optional[Session] = None,
 ) -> Iterator[str]:
     """Execute LangGraph agent stream and bridge node transitions and verified answers to SSE."""
     cfg = settings or get_settings()
@@ -54,9 +56,14 @@ def stream_chat_events(
     start_time = time.perf_counter()
     run_id = str(uuid.uuid4())
 
-    db = SessionLocal()
+    close_db = False
+    session = db
+    if session is None:
+        session = SessionLocal()
+        close_db = True
+
     try:
-        compiled_graph = create_agent(db=db, llm=provider, settings=cfg)
+        compiled_graph = create_agent(db=session, llm=provider, settings=cfg)
 
         initial_state: AgentState = {
             "question": question,
@@ -104,7 +111,7 @@ def stream_chat_events(
 
         elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
-        # 4. Best-effort persistence in runs table
+        # 4. Persistence in runs table (guarantee persistence succeeded before emitting done)
         try:
             run_record = Run(
                 id=run_id,
@@ -116,14 +123,16 @@ def stream_chat_events(
                 refused=is_refused,
                 latency_ms=elapsed_ms,
             )
-            db.add(run_record)
-            db.commit()
+            session.add(run_record)
+            session.commit()
         except Exception as db_exc:
-            logger.warning("Failed to persist run in database (best-effort): %s", db_exc)
+            logger.error("Failed to persist run in database: %s", db_exc, exc_info=True)
             try:
-                db.rollback()
+                session.rollback()
             except Exception:
                 pass
+            yield format_sse("error", {"message": f"Database persistence failed: {db_exc}"})
+            return
 
         # 5. Emit done event
         yield format_sse("done", {
@@ -136,11 +145,12 @@ def stream_chat_events(
         logger.error("Error during chat stream: %s", exc, exc_info=True)
         yield format_sse("error", {"message": str(exc)})
     finally:
-        db.close()
+        if close_db and session is not None:
+            session.close()
 
 
 @router.post("/chat")
-def chat_endpoint(request: ChatRequest):
+def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     """Deliver streamed answer with verifiable citations and node steps via SSE."""
     q = request.question.strip()
     if not q:
@@ -150,10 +160,10 @@ def chat_endpoint(request: ChatRequest):
         )
 
     return StreamingResponse(
-        stream_chat_events(question=q),
+        stream_chat_events(question=q, db=db),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },

@@ -371,3 +371,31 @@ def test_run_agent_graph_failure_re_raises_and_persists_best_effort(agent_settin
     assert mock_db.rollback.called
 
 
+def test_run_agent_persistence_failure_raises(agent_settings: Settings):
+    """Verify runner raises RuntimeError when DB persistence fails and execution succeeded (no fake success)."""
+    mock_db = MagicMock(spec=Session)
+    mock_db.commit.side_effect = Exception("DB disk full")
+
+    fake_llm = FakeLLMProvider()
+
+    with patch("apps.api.agent.runner.create_agent") as mock_create:
+        mock_graph = MagicMock()
+        mock_graph.invoke.return_value = {
+            "answer": "测试回答",
+            "citations": [],
+            "steps": [],
+            "refused": False,
+        }
+        mock_create.return_value = mock_graph
+
+        with pytest.raises(RuntimeError, match="Database persistence failed"):
+            run_agent(
+                db=mock_db,
+                question="测试持久化失败语义",
+                mode="hybrid",
+                llm=fake_llm,
+                settings=agent_settings,
+            )
+
+    assert mock_db.rollback.called
+

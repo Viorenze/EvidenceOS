@@ -4,9 +4,19 @@ import json
 from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 from apps.api.config import Settings
+from apps.api.db.session import get_db
 from apps.api.llm.provider import FakeLLMProvider
 from apps.api.main import app
+
+@pytest.fixture(autouse=True)
+def isolated_db_session():
+    """Isolate chat tests from real database, ensuring pytest never mutates the dev database."""
+    mock_session = MagicMock(spec=Session)
+    app.dependency_overrides[get_db] = lambda: mock_session
+    yield mock_session
+    app.dependency_overrides.pop(get_db, None)
 
 MOCK_CHUNKS = [
     {
@@ -139,3 +149,30 @@ def test_chat_sse_stream_error_handling(client: TestClient):
 
         error_event = [e[1] for e in events if e[0] == "error"][0]
         assert "Graph compilation failed" in error_event["message"]
+
+
+def test_chat_sse_stream_persistence_failure_semantics(client: TestClient, isolated_db_session: MagicMock):
+    """Verify persistence failure emits error and does not emit a fake success done event."""
+    isolated_db_session.commit.side_effect = Exception("Disk quota exceeded")
+
+    fake_llm = FakeLLMProvider(
+        custom_grades=[{"sufficient": True, "reason": "检索到的内容充分", "missing": ""}],
+        custom_answers=["FastAPI 原生支持依赖注入 [1]。"],
+    )
+
+    with patch("apps.api.agent.nodes.hybrid_search", return_value=MOCK_CHUNKS), patch(
+        "apps.api.routers.chat.get_llm_provider", return_value=fake_llm
+    ):
+        resp = client.post("/api/chat", json={"question": "FastAPI 如何做依赖注入？"})
+        assert resp.status_code == 200
+
+        events = parse_sse_events(resp.text)
+        event_types = [e[0] for e in events]
+
+        # 1. Must emit error event
+        assert "error" in event_types
+        # 2. MUST NOT emit done event with a fake run_id
+        assert "done" not in event_types
+
+        error_event = [e[1] for e in events if e[0] == "error"][0]
+        assert "Database persistence failed" in error_event["message"]

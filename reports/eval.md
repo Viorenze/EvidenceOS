@@ -1,8 +1,8 @@
 # EvidenceOS 评测报告 (Evaluation Report)
 
 > **生成时间**: 2026-10-05 15:52:52
-> **评测数据**: `evals/dataset.jsonl` (共 25 题: 20 道可回答, 5 道不可回答)
-> **评测语料**: `evals/corpus/` (3 篇技术文档: FastAPI, pgvector, RAG Hybrid)
+> **评测数据**: `evals/dataset.jsonl` (共 25 题: 20 道可回答, 5 道不可回答，受控评测集)
+> **评测语料**: `evals/corpus/` (3 篇受控技术文档: FastAPI, pgvector, RAG Hybrid，共 15 个切片)
 > **LLM 运行配置**: Provider=openai, Model=deepseek-chat
 
 ## 1. 三档模式综合指标对比
@@ -33,7 +33,7 @@
 
 ### (1) 纯检索 vs 智能体条件回路 (Agent Loop)
 - **证据审查与受控拒答**: 纯检索模式（Vector/Hybrid）没有 refusal capability，无法对召回片段的相关性进行语义判断；Hybrid+Agent 依托 Grade 节点的结构化判定与最多 2 次 Rewrite 条件循环，在面对不可回答问题时能稳定识别证据缺失并进入 Refuse 节点，输出固定拒答文本。
-- **服务端引用合法性核对**: 模型生成的引用标记必须通过服务端校验（对账本次召回切片），虚构或越界的引用标记会被过滤，保障引用的真实可溯源性。
+- **服务端引用合法性核对 (Index-level Verification)**: 模型生成的引用标记必须通过服务端物理校验（对账本次召回切片），虚构或越界的引用标记会被过滤，保障引用的真实可溯源性。本机制未运行自然语言推理（NLI）语义蕴含模型，不代表对文本事实的绝对真伪证明。
 
 ## 4. 逐题异常与偏差分析 (Per-Question Failure & Anomaly Analysis)
 

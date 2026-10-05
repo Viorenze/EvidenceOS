@@ -124,6 +124,8 @@ export async function streamChat(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
+  let completed = false;
+
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -163,9 +165,11 @@ export async function streamChat(
               callbacks.onCitations(parsed.items || []);
               break;
             case "done":
+              completed = true;
               callbacks.onDone(parsed as DoneData);
               break;
             case "error":
+              completed = true;
               callbacks.onError(parsed.message || "Unknown server error");
               break;
           }
@@ -174,8 +178,12 @@ export async function streamChat(
         }
       }
     }
+
+    if (!completed && !signal?.aborted) {
+      callbacks.onError("Stream terminated unexpectedly before completion");
+    }
   } catch (readErr: any) {
-    if (readErr.name === "AbortError") {
+    if (readErr.name === "AbortError" || signal?.aborted) {
       return;
     }
     callbacks.onError(readErr.message || "Stream connection interrupted");

@@ -9,7 +9,7 @@
 
 ## 2. 第 7 天的验收标准
 
-- [ ] `docker compose up` 后访问 `localhost:3000` 可用，无需登录
+- [ ] `docker compose up -d` 启动数据库，运行 API 与 Web 后访问 `localhost:3000` 可用，无需登录
 - [ ] 上传 md/pdf → 提问 → 流式回答，点击引用能看到原文片段
 - [ ] 知识库里没有答案时，系统明确拒答，而不是编造
 - [ ] `make eval` 生成 `reports/eval.md`，包含 vector-only / hybrid / hybrid+agent 三档对比
@@ -71,7 +71,7 @@ SSE 事件：
 - `error`：`{message}`
 
 > **流式时序设计说明（D4 锁定）**：
-> 服务端采用“完整生成 → 服务端引用校验 → 失败重试/拒答 → 确认答案有效 → SSE token 推流”的策略。整个图执行进度通过实时 `step` 事件呈现。最终确认的答案通过 `token` 事件流式推送给前端，保证客户端绝不会收到未校验的幻觉标记或在拒答前展示半成品内容。
+> 服务端采用“完整生成 → 服务端引用校验 → 失败重试/拒答 → 确认答案有效 → SSE token 推流”的策略。整个图执行进度通过实时 `step` 事件呈现。最终确认的答案通过 `token` 事件流式推送给前端，保证客户端绝不会收到未经验证的非法引用标号或在拒答前展示半成品内容。
 
 ## 7. 检索设计
 
@@ -105,7 +105,7 @@ START → retrieve → grade ──sufficient──→ generate → verify_citat
 
 **generate**：上下文片段编号为 `[1]…[k]`，要求回答中用 `[n]` 标注来源。
 
-**verify_citations**：服务端校验每个 `[n]` 都指向本次检索到的 chunk，支持 `[n]`、`【n】` 与 `[n, m]` 格式，剔除非法引用；若没有任何合法引用，重试生成一次，仍没有就拒答。引用校验确保引用标记在检索范围内，降低幻觉风险。
+**verify_citations**：服务端校验每个 `[n]` 都指向本次检索到的 chunk，支持 `[n]`、`【n】` 与 `[n, m]` 格式，剔除非法引用；若没有任何合法引用，重试生成一次，仍没有就拒答。引用校验确保引用标号物理落在本次检索范围内，剔除悬空与越界标号。
 
 **refuse**：固定文案，说明知识库中没有足够证据，不调用 LLM 编造。
 
@@ -113,12 +113,12 @@ START → retrieve → grade ──sufficient──→ generate → verify_citat
 
 ## 9. 评测
 
-数据集 `evals/dataset.jsonl`，约 25 题，**由我自己手写**：
+数据集 `evals/dataset.jsonl`，共 25 题（20 题可回答，5 题不可回答），基于受控语料针对性设计：
 
 - 20 题可回答：`{id, question, type: "answerable", gold_doc, gold_snippet}`，`gold_snippet` 是答案所在原文中的一小段，用子串匹配判定，不依赖具体分块
 - 5 题不可回答：`{id, question, type: "unanswerable"}`，问题看似相关但文档里没有答案
 
-语料：3–5 份开放许可的技术文档（例如 FastAPI、PostgreSQL 官方文档的若干章节），确认许可后放进 `evals/corpus/`。
+语料：3 篇受控技术文档（基于 FastAPI、PostgreSQL pgvector、RAG 核心主题合成整理），共 15 个切片，放进 `evals/corpus/`。
 
 指标：
 
@@ -158,9 +158,9 @@ UI、Docker、CRUD、样板代码可以放心交给 Agent。
 
 ## 12. 面试叙事与简历
 
-- 叙事：我做了一个带引用的知识问答系统，用评测证明混合检索优于纯向量，用带条件循环的 Agent 处理证据不足的情况，并让系统在没有答案时拒答。
+- 叙事：我做了一个带引用的知识问答系统，对比了向量检索与混合检索在微型受控语料下的表现，用带条件循环的 Agent 处理证据不足的情况，并在没有足够证据时受控拒答。
 - 简历只写已经做完并测过的内容；数字只写评测报告里的真实数字。
-- 演示方式：本地 `docker compose up` 现场运行，另备演示视频兜底。
+- 演示方式：本地 `docker compose up -d` 配合 uv/npm 现场运行，另备演示视频兜底。
 
 ## 13. Backlog（一周后再说）
 
