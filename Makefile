@@ -12,5 +12,8 @@ test:
 eval:
 	uv run python evals/runner.py
 
+setup-eval:
+	uv run python evals/runner.py --setup
+
 lint:
 	uv run ruff check .

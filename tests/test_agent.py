@@ -294,8 +294,9 @@ def test_agent_cleans_illegal_citation_markers(mock_search, agent_settings: Sett
     assert result["citations"][0]["n"] == 1
 
 
+@patch("apps.api.agent.nodes.hybrid_search", return_value=MOCK_CHUNKS)
 @pytest.mark.integration
-def test_run_agent_persistence_in_db(agent_settings: Settings):
+def test_run_agent_persistence_in_db(mock_search, agent_settings: Settings):
     """Path 7: run_agent execution stores run record into PostgreSQL with JSON arrays."""
     if not is_postgres_available():
         pytest.skip("PostgreSQL + pgvector is not currently reachable")

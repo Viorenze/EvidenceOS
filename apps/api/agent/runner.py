@@ -28,6 +28,7 @@ class RunResult(BaseModel):
     mode: str
     answer: str
     citations: List[Dict[str, Any]]
+    chunks: List[Dict[str, Any]] = []
     steps: List[Dict[str, Any]]
     refused: bool
     latency_ms: float
@@ -82,6 +83,7 @@ def run_agent(
 
     answer_text = final_state.get("answer") or ""
     citations_list = list(final_state.get("citations") or [])
+    chunks_list = list(final_state.get("chunks") or [])
     steps_list = list(final_state.get("steps") or [])
     is_refused = bool(final_state.get("refused", False))
 
@@ -116,6 +118,7 @@ def run_agent(
         mode=mode,
         answer=answer_text,
         citations=citations_list,
+        chunks=chunks_list,
         steps=steps_list,
         refused=is_refused,
         latency_ms=round(elapsed_ms, 2),

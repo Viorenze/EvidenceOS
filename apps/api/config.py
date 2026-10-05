@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     # Database connection URL (PostgreSQL + pgvector)
-    database_url: str = "postgresql+psycopg://evidence:evidence@localhost:5432/evidenceos"
+    database_url: str = "postgresql+psycopg://evidence:evidence@127.0.0.1:5432/evidenceos"
 
     # Embedding provider selection ("local" or "fake" for offline deterministic tests)
     embedding_provider: str = "local"

@@ -250,10 +250,19 @@ class FakeLLMProvider(LLMProvider):
             "unanswerable",
             "不可回答",
             "量子纠缠",
+            "量子",
             "火星移民",
             "不存在的功能",
             "宇宙飞船",
             "TEST_GRADE_INSUFFICIENT",
+            "Apollo",
+            "GraphQL",
+            "Redis",
+            "Neo4j",
+            "Cypher",
+            "Elasticsearch",
+            "Debezium",
+            "Kafka",
         ]
         is_unanswerable = any(kw in prompt_text for kw in unanswerable_keywords)
 

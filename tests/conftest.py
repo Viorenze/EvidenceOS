@@ -10,7 +10,7 @@ import pytest
 # Enforce fake embedding & LLM provider for offline deterministic testing
 os.environ["EMBEDDING_PROVIDER"] = "fake"
 os.environ["LLM_PROVIDER"] = "fake"
-os.environ["DATABASE_URL"] = "postgresql+psycopg://evidence:evidence@localhost:5432/evidenceos"
+os.environ["DATABASE_URL"] = "postgresql+psycopg://evidence:evidence@127.0.0.1:5432/evidenceos"
 
 from unittest.mock import patch
 from fastapi.testclient import TestClient
