@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import ChunkModal from "../components/ChunkModal";
-import { CitationItem, DoneData, StepItem, streamChat } from "../lib/api";
+import { CitationItem, DoneData, StepItem, streamChat, checkHealthReadiness } from "../lib/api";
 
 export default function ChatPage() {
   const [question, setQuestion] = useState("");
@@ -13,16 +13,69 @@ export default function ChatPage() {
   const [doneData, setDoneData] = useState<DoneData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Backend readiness state
+  const [backendReady, setBackendReady] = useState(false);
+  const [readinessStatus, setReadinessStatus] = useState<"checking" | "ready" | "timeout">("checking");
+
   // Active chunk inspected in modal
   const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null);
   const [stepsExpanded, setStepsExpanded] = useState(true);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Probe backend readiness on mount until ready or timeout
+  React.useEffect(() => {
+    let cancelled = false;
+    let timer: any = null;
+    const startTime = Date.now();
+    const TIMEOUT_MS = 60000;
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const { ready } = await checkHealthReadiness();
+        if (cancelled) return;
+        if (ready) {
+          setBackendReady(true);
+          setReadinessStatus("ready");
+          return;
+        }
+      } catch {
+        // Ignore network / proxy 500 while backend is starting
+      }
+
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        if (!cancelled) {
+          setReadinessStatus("timeout");
+        }
+        return;
+      }
+
+      timer = setTimeout(poll, 800);
+    };
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  // Clean up in-flight streaming request if user navigates away
+  React.useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAsk = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const q = question.trim();
-    if (!q || isStreaming) return;
+    if (!backendReady || !q || isStreaming) return;
 
     // Reset state for new round
     setIsStreaming(true);
@@ -151,7 +204,11 @@ export default function ChatPage() {
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="针对已上传的技术文档提问（例如：FastAPI 如何做依赖注入？pgvector 索引类型有哪些？）..."
+            placeholder={
+              backendReady
+                ? "针对已上传的技术文档提问（例如：FastAPI 如何做依赖注入？pgvector 索引类型有哪些？）..."
+                : "正在启动 AI 引擎，请稍候..."
+            }
             className="flex-1 px-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
             disabled={isStreaming}
           />
@@ -159,10 +216,17 @@ export default function ChatPage() {
             {!isStreaming ? (
               <button
                 type="submit"
-                disabled={!question.trim()}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition"
+                disabled={!backendReady || !question.trim()}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 min-w-[100px]"
               >
-                提问 (Ask)
+                {!backendReady ? (
+                  <>
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+                    <span>启动中...</span>
+                  </>
+                ) : (
+                  <span>提问 (Ask)</span>
+                )}
               </button>
             ) : (
               <button
@@ -176,31 +240,54 @@ export default function ChatPage() {
           </div>
         </form>
 
-        <div className="flex flex-wrap gap-2 mt-3 text-xs text-slate-500">
-          <span className="font-semibold text-slate-400">试一试:</span>
-          <button
-            type="button"
-            onClick={() => setQuestion("FastAPI 如何做依赖注入？")}
-            className="text-blue-600 hover:underline"
-          >
-            FastAPI 依赖注入
-          </button>
-          <span>·</span>
-          <button
-            type="button"
-            onClick={() => setQuestion("pgvector 支持哪些相似度索引？")}
-            className="text-blue-600 hover:underline"
-          >
-            pgvector 索引类型
-          </button>
-          <span>·</span>
-          <button
-            type="button"
-            onClick={() => setQuestion("超导量子计算机接入配置方案是什么？")}
-            className="text-slate-600 hover:underline"
-          >
-            超导量子计算机 (测试拒答)
-          </button>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-slate-500">
+            <span className="font-semibold text-slate-400">试一试:</span>
+            <button
+              type="button"
+              onClick={() => setQuestion("FastAPI 如何做依赖注入？")}
+              className="text-blue-600 hover:underline"
+            >
+              FastAPI 依赖注入
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => setQuestion("pgvector 支持哪些相似度索引？")}
+              className="text-blue-600 hover:underline"
+            >
+              pgvector 索引类型
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => setQuestion("超导量子计算机接入配置方案是什么？")}
+              className="text-slate-600 hover:underline"
+            >
+              超导量子计算机 (测试拒答)
+            </button>
+          </div>
+
+          <div>
+            {readinessStatus === "checking" && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                正在启动 AI 引擎…
+              </span>
+            )}
+            {readinessStatus === "ready" && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                AI 引擎已就绪
+              </span>
+            )}
+            {readinessStatus === "timeout" && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 font-medium">
+                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                AI 引擎响应超时
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

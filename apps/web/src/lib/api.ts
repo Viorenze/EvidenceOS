@@ -86,6 +86,41 @@ export async function getChunkDetail(chunkId: string): Promise<ChunkDetail> {
   return res.json();
 }
 
+export interface HealthStatus {
+  status: string;
+  ready: boolean;
+  components?: {
+    database?: string;
+    embedding?: {
+      provider: string;
+      model: string;
+      ready: boolean;
+    };
+  };
+}
+
+/**
+ * Probe backend readiness status.
+ * Returns ready=false on any connection errors (e.g. backend still starting up).
+ */
+export async function checkHealthReadiness(signal?: AbortSignal): Promise<{ ready: boolean; raw?: HealthStatus }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/health?details=true`, {
+      method: "GET",
+      signal,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return { ready: false };
+    }
+    const data: HealthStatus = await res.json();
+    return { ready: data.ready === true, raw: data };
+  } catch {
+    // Network down / port closed / proxy 500 during backend startup
+    return { ready: false };
+  }
+}
+
 export interface ChatStreamCallbacks {
   onStep: (step: StepItem) => void;
   onToken: (token: string) => void;
@@ -102,16 +137,44 @@ export async function streamChat(
   callbacks: ChatStreamCallbacks,
   signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
-    signal,
-  });
+  let res: Response | null = null;
+  let attempts = 0;
+  const maxAttempts = 2; // At most 1 brief retry for rare network/proxy race conditions
 
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    callbacks.onError(errorBody.detail || `Request failed with status ${res.status}`);
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+        signal,
+      });
+
+      if (res.ok) {
+        break;
+      }
+
+      // If an unexpected 500/502/ECONNREFUSED occurs on attempt 1, brief pause and retry once
+      if (attempts < maxAttempts && res.status >= 500 && !signal?.aborted) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        continue;
+      }
+      break;
+    } catch (netErr: any) {
+      if (signal?.aborted) throw netErr;
+      if (attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        continue;
+      }
+      throw netErr;
+    }
+  }
+
+  if (!res || !res.ok) {
+    const status = res ? res.status : 500;
+    const errorBody = res ? await res.json().catch(() => ({ detail: `HTTP ${status}` })) : { detail: "网络连接失败" };
+    callbacks.onError(errorBody.detail || `Request failed with status ${status}`);
     return;
   }
 

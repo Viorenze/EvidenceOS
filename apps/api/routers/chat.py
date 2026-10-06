@@ -83,6 +83,15 @@ def stream_chat_events(
         is_refused = False
         accumulated_steps: List[Dict[str, Any]] = []
 
+        # Emit immediate initial status step to guarantee TTFB < 50ms and provide instant UI feedback
+        init_step = {
+            "node": "retrieve",
+            "status": "running",
+            "detail": f"正在检索知识库文档: '{question[:25]}...'" if len(question) > 25 else f"正在检索知识库文档: '{question}'",
+        }
+        accumulated_steps.append(init_step)
+        yield format_sse("step", init_step)
+
         # 1. Stream intermediate node updates using LangGraph stream adapter
         for update in compiled_graph.stream(initial_state, stream_mode="updates"):
             for node_name, node_output in update.items():

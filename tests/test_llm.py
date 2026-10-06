@@ -182,3 +182,46 @@ def test_openai_llm_stream_generate_with_empty_choices():
     )
     tokens = list(provider.stream_generate([{"role": "user", "content": "hello"}]))
     assert tokens == ["Fast", "API"]
+
+
+def test_openai_llm_client_lifecycle_and_reuse():
+    def handler(request: httpx.Request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    mock_transport = httpx.MockTransport(handler)
+    provider = OpenAILLMProvider(
+        base_url="https://api.openai.com/v1",
+        api_key="test_key",
+        model="gpt-4o",
+        transport=mock_transport,
+    )
+    # Lazy initialization
+    assert provider._client is None
+    client_1 = provider._get_client()
+    assert client_1 is not None
+
+    # Multiple calls reuse the same client instance
+    provider.generate([{"role": "user", "content": "1"}])
+    client_2 = provider._get_client()
+    assert client_1 is client_2
+
+    # Context manager and close
+    with provider:
+        pass
+    assert provider._client.is_closed
+
+
+def test_openai_llm_client_default_resilience_config():
+    provider = OpenAILLMProvider(
+        base_url="https://api.openai.com/v1",
+        api_key="test_key",
+        model="gpt-4o",
+    )
+    client = provider._get_client()
+    assert not client.is_closed
+    # Ensure transport is configured with retries
+    transport = client._transport
+    assert isinstance(transport, httpx.HTTPTransport)
+    assert transport._pool._retries == 2
+    provider.close()
+    assert client.is_closed

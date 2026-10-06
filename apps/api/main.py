@@ -5,22 +5,63 @@ and vector/hybrid search. Automatically ensures database tables and pgvector
 extension exist on startup.
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.api.config import get_settings
 from apps.api.db.session import init_db
+from apps.api.rag.embeddings import warmup_embedding_provider
 from apps.api.routers import chat, documents, health, search
+
+logger = logging.getLogger("evidenceos.startup")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run database initialization on application startup."""
+    """Run full component initialization and pre-warming on application startup.
+
+    Ensures that when the API enters ready state:
+    1. PostgreSQL schema and pgvector extension are verified.
+    2. Local Embedding provider (PyTorch graph & BGE weights) is pre-warmed.
+    3. Chinese full-text tokenizer (jieba prefix dictionary) is pre-warmed.
+    This guarantees zero cold-start latency for the user's first query.
+    """
+    t_start = time.perf_counter()
+    cfg = get_settings()
+    print("=" * 60)
+    print("[EvidenceOS Startup] Initializing core components...")
+
+    # 1. Database & pgvector
+    t_db = time.perf_counter()
     try:
         init_db()
+        print(f"[EvidenceOS Startup] [1/3] Database & pgvector ready ({time.perf_counter() - t_db:.2f}s)")
     except Exception as e:
-        # If DB is not reachable during isolated unit test runs, log gracefully
-        print(f"[EvidenceOS] Database initialization skipped or deferred: {e}")
+        print(f"[EvidenceOS Startup] [1/3] Database initialization skipped or deferred: {e}")
+
+    # 2. Embedding provider pre-warming
+    t_emb = time.perf_counter()
+    try:
+        warmup_embedding_provider()
+        print(f"[EvidenceOS Startup] [2/3] Embedding model ({cfg.embedding_provider}: {cfg.embedding_model}) ready ({time.perf_counter() - t_emb:.2f}s)")
+    except Exception as e:
+        print(f"[EvidenceOS Startup] [2/3] Embedding warm-up encountered error: {e}")
+
+    # 3. jieba tokenizer pre-warming
+    t_jb = time.perf_counter()
+    try:
+        import jieba
+        jieba.initialize()
+        print(f"[EvidenceOS Startup] [3/3] jieba tokenizer dictionary ready ({time.perf_counter() - t_jb:.2f}s)")
+    except Exception as e:
+        print(f"[EvidenceOS Startup] [3/3] jieba initialization skipped: {e}")
+
+    total_time = time.perf_counter() - t_start
+    print(f"[EvidenceOS Startup] All components ready in {total_time:.2f}s. Listening for requests.")
+    print("=" * 60)
     yield
 
 

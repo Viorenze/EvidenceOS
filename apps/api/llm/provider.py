@@ -8,6 +8,7 @@ for offline testing without external network calls or API keys.
 import json
 import logging
 import re
+import ssl
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar
 
@@ -54,7 +55,19 @@ def _clean_json_markdown(text: str) -> str:
 
 
 class OpenAILLMProvider(LLMProvider):
-    """OpenAI-compatible HTTP provider using httpx."""
+    """OpenAI-compatible HTTP provider using httpx.
+
+    Why this connection model works (Interview Reference):
+    1. Persistent Client & Keep-Alive:
+       Reuses underlying TCP + TLS connections across multiple agent steps
+       (retrieve -> grade -> rewrite -> generate), eliminating repetitive TLS
+       handshakes and TCP port exhaustion (TIME_WAIT) that cause proxy/gateway EOF errors.
+    2. OpenSSL 3 Protocol Tolerance:
+       Configures `ssl.OP_IGNORE_UNEXPECTED_EOF` so non-clean socket shutdowns
+       from proxies (Mihomo TUN / Clash / API gateways) do not raise fatal protocol errors.
+    3. Transparent Transport Retries:
+       Enables `retries=2` on the HTTP transport layer to absorb transient network drops.
+    """
 
     def __init__(
         self,
@@ -69,9 +82,39 @@ class OpenAILLMProvider(LLMProvider):
         self.model = model
         self.timeout = timeout
         self.transport = transport
+        self._client: Optional[httpx.Client] = None
 
     def _get_client(self) -> httpx.Client:
-        return httpx.Client(timeout=self.timeout, transport=self.transport)
+        """Get or lazily initialize the persistent httpx client with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            if self.transport is not None:
+                self._client = httpx.Client(timeout=self.timeout, transport=self.transport)
+            else:
+                ctx = ssl.create_default_context()
+                if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
+                    ctx.options |= ssl.OP_IGNORE_UNEXPECTED_EOF
+                transport = httpx.HTTPTransport(
+                    verify=ctx,
+                    retries=2,
+                    limits=httpx.Limits(
+                        max_connections=50,
+                        max_keepalive_connections=10,
+                        keepalive_expiry=30.0,
+                    ),
+                )
+                self._client = httpx.Client(timeout=self.timeout, transport=transport)
+        return self._client
+
+    def close(self) -> None:
+        """Close the underlying client connection pool."""
+        if self._client is not None and not self._client.is_closed:
+            self._client.close()
+
+    def __enter__(self) -> "OpenAILLMProvider":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -87,14 +130,14 @@ class OpenAILLMProvider(LLMProvider):
             "temperature": temperature,
         }
         try:
-            with self._get_client() as client:
-                resp = client.post(url, json=payload, headers=self._get_headers())
-                resp.raise_for_status()
-                data = resp.json()
-                choices = data.get("choices")
-                if not choices:
-                    raise RuntimeError("LLM response contains empty choices")
-                return choices[0]["message"]["content"]
+            client = self._get_client()
+            resp = client.post(url, json=payload, headers=self._get_headers())
+            resp.raise_for_status()
+            data = resp.json()
+            choices = data.get("choices")
+            if not choices:
+                raise RuntimeError("LLM response contains empty choices")
+            return choices[0]["message"]["content"]
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"LLM API returned HTTP error {e.response.status_code}: {e.response.text}") from e
         except httpx.RequestError as e:
@@ -127,10 +170,10 @@ class OpenAILLMProvider(LLMProvider):
         }
 
         try:
-            with self._get_client() as client:
-                resp = client.post(url, json=payload, headers=self._get_headers())
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
+            client = self._get_client()
+            resp = client.post(url, json=payload, headers=self._get_headers())
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"LLM API returned HTTP error {e.response.status_code}: {e.response.text}") from e
         except httpx.RequestError as e:
@@ -158,26 +201,26 @@ class OpenAILLMProvider(LLMProvider):
             "stream": True,
         }
         try:
-            with self._get_client() as client:
-                with client.stream("POST", url, json=payload, headers=self._get_headers()) as resp:
-                    resp.raise_for_status()
-                    for line in resp.iter_lines():
-                        if not line:
+            client = self._get_client()
+            with client.stream("POST", url, json=payload, headers=self._get_headers()) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk_data = json.loads(data_str)
+                            choices = chunk_data.get("choices")
+                            if choices and len(choices) > 0:
+                                delta = choices[0].get("delta", {})
+                                content = delta.get("content")
+                                if content:
+                                    yield content
+                        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
                             continue
-                        if line.startswith("data: "):
-                            data_str = line[6:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk_data = json.loads(data_str)
-                                choices = chunk_data.get("choices")
-                                if choices and len(choices) > 0:
-                                    delta = choices[0].get("delta", {})
-                                    content = delta.get("content")
-                                    if content:
-                                        yield content
-                            except (json.JSONDecodeError, KeyError, IndexError, TypeError):
-                                continue
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"LLM stream returned HTTP error {e.response.status_code}: {e.response.text}") from e
         except httpx.RequestError as e:

@@ -9,10 +9,13 @@ Rule 2: Every embedding call goes through this abstraction. No direct SDK calls 
 
 from abc import ABC, abstractmethod
 import hashlib
+import logging
 from typing import List
 import numpy as np
 
 from apps.api.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingProvider(ABC):
@@ -68,7 +71,18 @@ class LocalBGEEmbeddingProvider(EmbeddingProvider):
     def __init__(self, model_name: str = "BAAI/bge-small-zh-v1.5"):
         from sentence_transformers import SentenceTransformer
 
-        self.model = SentenceTransformer(model_name)
+        try:
+            # First attempt: load strictly from local cache to bypass online HF Hub check (~0.35s)
+            self.model = SentenceTransformer(model_name, local_files_only=True)
+            logger.info("Loaded embedding model '%s' from local cache (offline mode).", model_name)
+        except Exception as local_err:
+            logger.warning(
+                "Local model cache not found or incomplete for '%s' (%s). Falling back to online fetch...",
+                model_name,
+                local_err,
+            )
+            self.model = SentenceTransformer(model_name)
+            logger.info("Successfully fetched and loaded embedding model '%s'.", model_name)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if not texts:
@@ -96,3 +110,10 @@ def get_embedding_provider() -> EmbeddingProvider:
         else:
             _provider_instance = LocalBGEEmbeddingProvider(model_name=settings.embedding_model)
     return _provider_instance
+
+
+def warmup_embedding_provider() -> EmbeddingProvider:
+    """Pre-load embedding model and run a single dummy inference to warm up PyTorch graph."""
+    provider = get_embedding_provider()
+    provider.embed_query("warmup")
+    return provider
