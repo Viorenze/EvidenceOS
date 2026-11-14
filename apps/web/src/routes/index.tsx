@@ -684,10 +684,10 @@ function ChatRouteComponent() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
       if (e.nativeEvent.isComposing || e.keyCode === 229) {
         return;
       }
+      e.preventDefault();
       void handleAsk();
     }
   };

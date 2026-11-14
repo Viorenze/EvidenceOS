@@ -68,7 +68,7 @@ flowchart TD
    - 使用学术界与工业界通用的 RRF 平滑公式（$k=60$）无参数融合出 Top 5 核心切片。
 4. **LangGraph 有条件循环 Agent 回路**：
    - 严禁传统的线性 Chain 模式；引入 `Grade` 节点审查检索切片是否足以支撑回答；若证据不足，根据缺失点自动触发 `Rewrite` 节点补充技术关键词重试（最多 2 次）；
-    - 若重试后仍不足，坚决流向 `Refuse` 节点，输出固定拒答文案，避免无据编造。
+   - 若重试后仍不足，坚决流向 `Refuse` 节点，输出固定拒答文案，避免无据编造。
 5. **服务端引用强校验（Server-Side Citation Verification）**：
    - 绝不信任 LLM 随意生成的引用标记。服务端逐一提取并验证 `[n]`、`【n】` 或 `[n, m]` 是否严格落在本次检索到的切片范围内；
    - 自动过滤越界标记（如不存在的 `[99]`），且保护代码中的数组下标（如 `data[0]`）；
@@ -152,9 +152,11 @@ make up
 ```bash
 # 显式入库 3 篇受控评测语料 (15 chunks)
 make setup-eval
+# 或 uv run python evals/runner.py --setup
 
 # 运行三档对比评测基准 (自动输出并更新 reports/eval.md)
 make eval
+# 或 uv run python evals/runner.py
 ```
 
 ### 4. 启动后端 API 与前端 Web
@@ -170,7 +172,7 @@ npm run dev
 ```
 
 打开浏览器访问 `http://localhost:3000`：
-* **Documents 页面 (`/documents`)**：上传技术文档、查看分块入库进度及分块数；
+* **Documents 页面 (`/documents`)**：上传技术文档、查看分块入库进度及分块数，支持点击「查看」或双击文档行打开 `DocumentModal` 预览全文与切片；
 * **Chat 页面 (`/`)**：提问、查看实时思考回路展开、流式接收答案、点击 `[n]` 徽标在 ChunkModal 对话框查看原始切片对账。
 
 ### 5. 运行完整自动化测试套件
@@ -257,10 +259,10 @@ EvidenceOS/
    - 切换至 `http://localhost:3000`，提问：`FastAPI 如何做依赖注入？`
    - 展示前端折叠面板动态展示 LangGraph 思考状态（`retrieve` → `grade: Sufficient: True` → `generate` → `verify_citations`）；
    - 展示答案逐字流式渲染，文末附带清晰的引用徽标 `[1]`；
-   - 点击徽标 `[1]`，弹出 `ChunkModal` 原文对话框，核对该引用的来源文件、章节面包屑（`FastAPI 核心技术指南 > 依赖注入系统`）以及完整切片文本。
+   - 点击徽标 `[1]`，弹出 `ChunkModal` 原文对话框，核对该引用的来源文件、章节面包屑（`FastAPI 核心技术指南 > 依赖注入系统（Dependency Injection）`）以及完整切片文本。
 3. **第 3 分钟：不可回答问题的受控拒答与评测对账**
    - 提问超范围问题：`FastAPI 如何原生配置接入 Apollo GraphQL 订阅服务器？`
-   - 观察思考面板展现 9 个步骤：第 1 次检索不足 → 第 1 次改写重试 → 第 2 次改写重试 → 最终触发 `refuse` 节点；
+   - 观察思考面板展现 10 个步骤（1 条初始检索运行状态 + 9 个 LangGraph 节点执行步骤：第 1 次检索不足 → 第 1 次改写重试 → 第 2 次改写重试 → 最终触发 `refuse` 节点）；
    - 页面渲染固定拒答文案，避免无据编造；
    - 切换至终端执行 `make eval`，现场跑出三档对比数据，打开 [`reports/eval.md`](reports/eval.md) 结合 `q15` 案例解释指标定义与技术归因。
 
