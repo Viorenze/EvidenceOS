@@ -6,10 +6,12 @@
 [![StyleX](https://img.shields.io/badge/Styling-Meta%20StyleX-blue.svg)](https://stylexjs.com/)
 [![PostgreSQL + pgvector](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Tests](https://img.shields.io/badge/Tests-192%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-192%20passed-brightgreen.svg)](#5-运行完整自动化测试套件)
 
 > **EvidenceOS** 是一个面向技术文档、具备严谨证据审查与**服务端引用核对**机制的端到端 AI 知识库问答系统。
 > 核心原则：**宽度精简，深度聚焦——混合检索、有条件循环 Agent、服务端引用核验、可复现基准评测。**
+>
+> **版本演进说明（V1 → V2）**：当前 `main` 分支（[`v2.0.0`](https://github.com/Viorenze/EvidenceOS/tree/v2.0.0)）已完成前端向 **TanStack Start + Vite+ (Vite 8) + Meta StyleX** 的架构重构与引擎/测试升级；原始 **Next.js 14 + Tailwind CSS** 初版（V1）完整保留于 [`legacy/nextjs`](https://github.com/Viorenze/EvidenceOS/tree/legacy/nextjs) 分支与 [`v1.0.0`](https://github.com/Viorenze/EvidenceOS/tree/v1.0.0) 标签。详见 [架构演进与版本分支 (V1 -> V2)](#架构演进与版本分支-v1---v2)。
 
 ---
 
@@ -122,7 +124,7 @@ flowchart TD
 
 ```bash
 # 克隆仓库
-git clone <repository-url>
+git clone https://github.com/Viorenze/EvidenceOS.git
 cd EvidenceOS
 
 # 复制环境变量配置
@@ -270,5 +272,5 @@ EvidenceOS/
 
 | 版本 / 分支 / Tag | 前端架构与工程化 | 核心演进内容 |
 | :--- | :--- | :--- |
-| **`v1.0.0`** (`legacy/nextjs`) | **Next.js 14 + Tailwind CSS** | 完成 EvidenceOS 全链路 MVP：Hybrid Search + RRF、LangGraph 条件循环、Verify-then-Stream 引用校验、真实 DeepSeek 三档评测基准与 Next.js 基础交互。 |
-| **`v2.0.0`** (`main`) | **TanStack Start + Vite+ (Vite 8) + Meta StyleX** | 1. 迁出 Next.js / Tailwind CSS，重构为全栈强类型 TanStack Start 路由与编译期零运行时原子化 StyleX（配合 `@stylexjs/eslint-plugin` + `vp check --deny-warnings` + `tsc --noEmit` 门禁）；<br>2. 新增文档详情与全文预览（`GET /api/documents/{id}` + `DocumentModal`）、就绪状态/503 代理保护与流式 Markdown/代码高亮渲染；<br>3. 后端向量推理新增轻量纯 NumPy Transformer 引擎（`_FastNumpyBertEngine`），移除 PyTorch 运行时强依赖（与 PyTorch 参考数值误差 `< 2e-7`）；<br>4. 扩展端到端测试至 **192 项全链路测试**（含 5-Tier 102 项 E2E 对抗性验证）。 |
+| [**`v1.0.0`**](https://github.com/Viorenze/EvidenceOS/tree/v1.0.0) ([`legacy/nextjs`](https://github.com/Viorenze/EvidenceOS/tree/legacy/nextjs)) | **Next.js 14 + Tailwind CSS** | 完成 EvidenceOS 全链路 MVP：Hybrid Search + RRF、LangGraph 条件循环、Verify-then-Stream 引用校验、真实 DeepSeek 三档评测基准与 Next.js 基础交互。 |
+| [**`v2.0.0`**](https://github.com/Viorenze/EvidenceOS/tree/v2.0.0) ([`main`](https://github.com/Viorenze/EvidenceOS/tree/main)) | **TanStack Start + Vite+ (Vite 8) + Meta StyleX** | 1. 迁出 Next.js / Tailwind CSS，重构为全栈强类型 TanStack Start 路由与编译期零运行时原子化 StyleX（配合 `@stylexjs/eslint-plugin` + `vp check --deny-warnings` + `tsc --noEmit` 门禁）；<br>2. 新增文档详情与全文预览（`GET /api/documents/{id}` + `DocumentModal`）、跨路由不中断 SSE 流式任务的 `chatStore` 会话状态管理，以及 Vite `/api/health` 启动探针兜底、`/api` 503 代理保护与 StyleX `@layer` 样式预热；<br>3. 后端本地缓存向量推理默认使用纯 NumPy + Safetensors 引擎（`_FastNumpyBertEngine`），启动阶段绕过 `torch` / `sentence_transformers` 导入（与 `SentenceTransformer` 参考输出 `max_abs_diff` ~ `1.19e-7` `< 2e-7`、cosine `1.00000000`），同时在 `pyproject.toml` 中保留 `sentence-transformers` 作为未缓存或在线拉取场景的自动回退引擎；<br>4. 扩展测试套件至 **192 项自动化测试**（90 项单元/集成测试 + 102 项 5-Tier E2E 与对抗性验证）。 |
