@@ -33,7 +33,7 @@
 
 | 层 | 选择 | 备注 |
 |---|---|---|
-| 前端 | Next.js + TypeScript + Tailwind | UI 能用就行，不花时间美化 |
+| 前端 | Vite+ (Vite 8) + TanStack Start (`@tanstack/react-start`) + Meta StyleX (`@stylexjs/stylex`) + TypeScript | 彻底移除 Tailwind CSS 与 PostCSS，全栈类型安全路由与零运行时原子 CSS |
 | 后端 | FastAPI + Pydantic + SQLAlchemy | 异步接口，SSE 用 StreamingResponse |
 | 数据库 | PostgreSQL + pgvector | 向量与全文检索同库 |
 | 中文分词 | jieba | Postgres 默认全文检索不会切中文，见第 7 节 |
@@ -43,6 +43,25 @@
 | 工程 | Docker Compose、pytest、Git | |
 
 依赖版本在 M0 由 lockfile 固定，不手写版本号。
+
+### 4.1 前端重构架构与生态规范（前端技术栈迁移）
+
+前端应用由原 Next.js + Tailwind CSS 完整就地迁移至 **Vite+（Vite 8）+ TanStack Start + Meta StyleX** 原生生态：
+
+1. **彻底移除 Tailwind CSS 与 PostCSS**：
+   - 彻底删除 `tailwind.config.js`、`postcss.config.js`、`autoprefixer` 及所有 `@tailwind` 指令与 utility class 字符串。
+   - 全面采用 Meta StyleX（`@stylexjs/stylex`）与 `@stylexjs/unplugin` 构建 compile-time 原子化样式，通过 `src/styles/tokens.stylex.ts`（`stylex.defineVars`）统一管理类型化设计 Token，辅以最小全局样式重置 `src/styles/reset.css`。
+2. **开发态反向代理（Development Proxy）**：
+   - Vite 开发服务器通过 `server.proxy` 配置将 `/api` 前缀请求透明代理至 FastAPI 后端（`http://127.0.0.1:8000` 或 `process.env.API_URL`），消除跨域问题并与生产环境路由拓扑保持 100% 一致。
+3. **面向 Agent 优化的原生工具链（Agent-Native Tooling）**：
+   - **`apps/web/.cursorrules`**：专为 Agent 设立的开发约束规则，严禁引入 Tailwind CSS，约束 StyleX `stylex.props()` 模式与 TanStack Router 类型化路由规则。
+   - **`@tanstack/react-router-devtools`**：提供实时路由树可视化、加载状态追踪与上下文观测。
+   - **`vite-plugin-inspect`**：在开发态深入观测 Vite 插件流水线、模块依赖图以及 StyleX 的编译转换过程。
+   - **`@stylexjs/eslint-plugin`**：静态分析代码中的 StyleX 用法，杜绝动态字符串样式或非法属性。
+   - **`Vite+`（`vp check`）**：集成 Oxfmt、Oxlint 和 TypeScript 统一无状态一键静态检查与类型验证。
+4. **严格保持既有系统契约**：
+   - 后端接口契约（`/api/health`, `/api/documents`, `/api/chunks/{id}`, `/api/chat` SSE 流式事件）保持 100% 兼容。
+   - 数据库模型（PostgreSQL + pgvector 三张表）、LangGraph Agent 拓扑（含 conditional loop 与引用核验）、检索分块逻辑及评测指标体系全部完整保留。
 
 ## 5. 数据模型（3 张表）
 
@@ -57,6 +76,7 @@
 | GET | `/api/health` | 健康检查 |
 | POST | `/api/documents` | multipart 上传，返回 202 与文档 id，后台入库 |
 | GET | `/api/documents` | 文档列表与状态 |
+| GET | `/api/documents/{id}` | 单篇文档完整内容与有序切片列表（支持双击在线预览） |
 | DELETE | `/api/documents/{id}` | 删除文档及其 chunks |
 | GET | `/api/chunks/{id}` | 引用原文展示 |
 | POST | `/api/search` | `{query, mode: vector\|hybrid, k}`，供评测与调试 |

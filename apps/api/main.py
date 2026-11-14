@@ -42,22 +42,31 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[EvidenceOS Startup] [1/3] Database initialization skipped or deferred: {e}")
 
-    # 2. Embedding provider pre-warming
-    t_emb = time.perf_counter()
-    try:
-        warmup_embedding_provider()
-        print(f"[EvidenceOS Startup] [2/3] Embedding model ({cfg.embedding_provider}: {cfg.embedding_model}) ready ({time.perf_counter() - t_emb:.2f}s)")
-    except Exception as e:
-        print(f"[EvidenceOS Startup] [2/3] Embedding warm-up encountered error: {e}")
+    # 2 & 3. Concurrent Embedding provider + jieba tokenizer pre-warming
+    from concurrent.futures import ThreadPoolExecutor
 
-    # 3. jieba tokenizer pre-warming
-    t_jb = time.perf_counter()
-    try:
-        import jieba
-        jieba.initialize()
-        print(f"[EvidenceOS Startup] [3/3] jieba tokenizer dictionary ready ({time.perf_counter() - t_jb:.2f}s)")
-    except Exception as e:
-        print(f"[EvidenceOS Startup] [3/3] jieba initialization skipped: {e}")
+    def _warm_emb():
+        t_emb = time.perf_counter()
+        try:
+            warmup_embedding_provider()
+            print(f"[EvidenceOS Startup] [2/3] Embedding model ({cfg.embedding_provider}: {cfg.embedding_model}) ready ({time.perf_counter() - t_emb:.2f}s)")
+        except Exception as e:
+            print(f"[EvidenceOS Startup] [2/3] Embedding warm-up encountered error: {e}")
+
+    def _warm_jieba():
+        t_jb = time.perf_counter()
+        try:
+            import jieba
+            jieba.initialize()
+            print(f"[EvidenceOS Startup] [3/3] jieba tokenizer dictionary ready ({time.perf_counter() - t_jb:.2f}s)")
+        except Exception as e:
+            print(f"[EvidenceOS Startup] [3/3] jieba initialization skipped: {e}")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_emb = pool.submit(_warm_emb)
+        f_jb = pool.submit(_warm_jieba)
+        f_emb.result()
+        f_jb.result()
 
     total_time = time.perf_counter() - t_start
     print(f"[EvidenceOS Startup] All components ready in {total_time:.2f}s. Listening for requests.")
@@ -72,7 +81,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable CORS for Next.js frontend
+# Enable CORS for web frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
