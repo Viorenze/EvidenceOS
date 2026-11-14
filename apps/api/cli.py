@@ -12,7 +12,7 @@ import uuid
 from apps.api.db.models import Document
 from apps.api.db.session import SessionLocal, init_db
 from apps.api.rag.ingestion import process_document
-from apps.api.rag.retrieval import vector_search
+from apps.api.rag.retrieval import hybrid_search, vector_search
 
 
 def cmd_ingest(args):
@@ -42,9 +42,6 @@ def cmd_ingest(args):
         sys.exit(1)
     finally:
         db.close()
-
-
-from apps.api.rag.retrieval import hybrid_search, vector_search
 
 
 def cmd_search(args):

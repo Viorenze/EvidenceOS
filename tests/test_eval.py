@@ -10,7 +10,6 @@ Verifies:
 """
 
 import math
-import pytest
 from unittest.mock import MagicMock
 
 from evals.runner import (

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.db.models import Chunk, Document
-from apps.api.rag.chunker import RawChunk, chunk_markdown, chunk_pdf
+from apps.api.rag.chunker import chunk_markdown, chunk_pdf
 from apps.api.rag.embeddings import get_embedding_provider
 
 

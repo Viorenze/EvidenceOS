@@ -6,7 +6,6 @@ Automatically runs when PostgreSQL is available, and cleanly skips if database i
 import uuid
 import pytest
 from sqlalchemy import text
-from apps.api.config import get_settings
 from apps.api.db.models import Chunk, Document
 from apps.api.db.session import engine, init_db, SessionLocal
 from apps.api.rag.ingestion import process_document

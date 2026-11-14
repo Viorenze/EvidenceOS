@@ -193,9 +193,12 @@ EvidenceOS/
 │   │   ├── routers/             # API 路由 (documents, search, chunks, chat SSE)
 │   │   ├── config.py            # 全局配置管理 (基于 pydantic-settings)
 │   │   └── main.py              # FastAPI 应用入口与中间件配置
-│   └── web/                     # TanStack Start + Vite 8 + Meta StyleX 前端应用
-│       ├── src/app/             # App Router 页面 (chat 页面, documents 页面)
-│       └── src/components/      # UI 组件 (Header, ChunkModal 对话框, SSE 客户端流解析器)
+│   └── web/                     # TanStack Start + Vite+ (Vite 8) + Meta StyleX 前端应用
+│       ├── src/routes/          # TanStack Router 文件系统路由 (__root, index 对话页, documents 文档页)
+│       ├── src/components/      # UI 组件 (Header, Footer, ChunkModal, DocumentModal)
+│       ├── src/lib/             # API 客户端、SSE 流式解析器与会话状态管理
+│       ├── src/styles/          # 全局 Reset CSS 与 StyleX 设计令牌 (tokens.stylex.ts)
+│       └── vite.config.ts       # Vite+ 检查门禁、StyleX 编译插件与 /api 代理配置
 ├── evals/                       # 评测基准
 │   ├── corpus/                  # 3 篇受控技术文档语料 (FastAPI, pgvector, RAG Hybrid)
 │   ├── dataset.jsonl            # 25 道受控评测问题 (20 道可回答 + 5 道不可回答)

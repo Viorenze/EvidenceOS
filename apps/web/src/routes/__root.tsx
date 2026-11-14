@@ -120,14 +120,21 @@ export const Route = createRootRoute({
         title: "EvidenceOS - 可信技术文档检索与问答系统",
       },
     ],
-    links: import.meta.env.DEV
-      ? [
-          {
-            rel: "stylesheet",
-            href: "/virtual:stylex.css",
-          },
-        ]
-      : [],
+    links: [
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M9 10h14v2.5H9zm0 5h14v2.5H9zm0 5h9v2.5H9z' fill='%23fff'/%3E%3C/svg%3E",
+      },
+      ...(import.meta.env.DEV
+        ? [
+            {
+              rel: "stylesheet",
+              href: "/virtual:stylex.css",
+            },
+          ]
+        : []),
+    ],
   }),
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

@@ -9,7 +9,6 @@ Three locked tables as specified in PRD Section 5:
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, List
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (

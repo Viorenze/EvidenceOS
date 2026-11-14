@@ -2,7 +2,6 @@
 
 from unittest.mock import patch, MagicMock
 from apps.api.cli import main
-import pytest
 
 
 def test_cli_search_vector_output(capsys):

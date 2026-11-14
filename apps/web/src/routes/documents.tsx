@@ -489,6 +489,7 @@ function DocumentsComponent() {
   // Row hover & double-click document preview modal state
   const [hoveredDocId, setHoveredDocId] = React.useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = React.useState<{ id: string; filename: string } | null>(null);
+  const handleClosePreviewModal = React.useCallback(() => setPreviewDoc(null), []);
 
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -784,7 +785,7 @@ function DocumentsComponent() {
                     <td {...stylex.props(styles.td, isRowActive && styles.tdFirstActive)}>
                       <div {...stylex.props(styles.docNameWrapper)}>
                         <span {...stylex.props(styles.docIcon)}>
-                          {doc.filename.endsWith(".pdf") ? "📕" : "📄"}
+                          {doc.filename.toLowerCase().endsWith(".pdf") ? "📕" : "📄"}
                         </span>
                         <span
                           {...stylex.props(
@@ -865,7 +866,7 @@ function DocumentsComponent() {
       <DocumentModal
         documentId={previewDoc?.id ?? null}
         initialFilename={previewDoc?.filename}
-        onClose={() => setPreviewDoc(null)}
+        onClose={handleClosePreviewModal}
       />
     </div>
   );

@@ -17,11 +17,9 @@ Authoritative sources:
 
 import io
 from unittest.mock import MagicMock, patch
-import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.config import get_settings
-from apps.api.db.models import Chunk, Document
+from apps.api.db.models import Document
 from apps.api.db.session import SessionLocal
 from apps.api.llm.provider import FakeLLMProvider
 from apps.api.agent.citations import extract_citation_numbers, verify_citations, clean_answer_citations

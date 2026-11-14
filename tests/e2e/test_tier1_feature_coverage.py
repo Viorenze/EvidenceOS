@@ -14,11 +14,10 @@ Authoritative sources:
 - apps/api/agent/citations.py
 """
 
-import io
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
-from apps.api.db.models import Chunk, Document, Run
+from apps.api.db.models import Chunk, Document
 from apps.api.db.session import SessionLocal
 from apps.api.llm.provider import FakeLLMProvider
 from tests.e2e.conftest import parse_sse_events, upload_test_doc

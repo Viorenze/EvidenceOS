@@ -83,7 +83,7 @@ def main():
     print("=" * 80)
     print(" EvidenceOS Web Frontend Refactor — 5-Tier E2E Test Suite Runner")
     print(f" Working Directory: {PROJECT_ROOT}")
-    print(f" Environment: EMBEDDING_PROVIDER=fake | LLM_PROVIDER=fake")
+    print(" Environment: EMBEDDING_PROVIDER=fake | LLM_PROVIDER=fake")
     print("=" * 80)
 
     overall_start = time.perf_counter()

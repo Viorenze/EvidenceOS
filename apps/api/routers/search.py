@@ -1,6 +1,6 @@
 """Search endpoint for evaluation and debugging matching PRD Section 6."""
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
