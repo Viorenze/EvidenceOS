@@ -12,7 +12,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import sys
 import time
 import uuid
@@ -475,8 +474,8 @@ def format_markdown_report(summaries: List[Dict[str, Any]], llm_provider_info: s
         "# EvidenceOS 评测报告 (Evaluation Report)",
         "",
         f"> **生成时间**: {now_str}  ",
-        f"> **评测数据**: `evals/dataset.jsonl` (共 25 题: 20 道可回答, 5 道不可回答)  ",
-        f"> **评测语料**: `evals/corpus/` (3 篇技术文档: FastAPI, pgvector, RAG Hybrid)  ",
+        "> **评测数据**: `evals/dataset.jsonl` (共 25 题: 20 道可回答, 5 道不可回答)  ",
+        "> **评测语料**: `evals/corpus/` (3 篇技术文档: FastAPI, pgvector, RAG Hybrid)  ",
         f"> **LLM 运行配置**: {llm_provider_info}  ",
         "",
         "## 1. 三档模式综合指标对比",

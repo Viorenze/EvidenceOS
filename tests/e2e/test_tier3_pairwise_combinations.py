@@ -17,11 +17,8 @@ Authoritative sources:
 
 import uuid
 from unittest.mock import patch
-import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.db.models import Chunk, Document
-from apps.api.db.session import SessionLocal
 from apps.api.llm.provider import FakeLLMProvider
 from tests.e2e.conftest import parse_sse_events, upload_test_doc
 

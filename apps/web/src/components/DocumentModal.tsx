@@ -342,15 +342,20 @@ export interface DocumentModalProps {
 export function DocumentModal({ documentId, initialFilename, onClose }: DocumentModalProps) {
   const dialogRef = React.useRef<HTMLDialogElement | null>(null);
   const pressedOutsideRef = React.useRef(false);
+  const onCloseRef = React.useRef(onClose);
   const titleId = React.useId();
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const handleCloseModal = React.useCallback(() => {
     const dialog = dialogRef.current;
     if (dialog && dialog.open) {
       dialog.close();
     }
-    onClose();
-  }, [onClose]);
+    onCloseRef.current();
+  }, []);
 
   // Sync native <dialog> modal open/close state with documentId prop
   React.useEffect(() => {
@@ -373,7 +378,7 @@ export function DocumentModal({ documentId, initialFilename, onClose }: Document
 
     const handleNativeClose = () => {
       dialog.returnValue = "";
-      onClose();
+      onCloseRef.current();
     };
     dialog.addEventListener("close", handleNativeClose);
 
@@ -407,7 +412,7 @@ export function DocumentModal({ documentId, initialFilename, onClose }: Document
       dialog.removeEventListener("close", handleNativeClose);
       if (cleanupFallback) cleanupFallback();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <dialog
@@ -504,7 +509,7 @@ function DocumentModalBody({
     if (!detail) return;
     const blob = new Blob([detail.content || ""], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    window.open(url, "_blank", "noopener,noreferrer");
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 

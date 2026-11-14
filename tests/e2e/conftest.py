@@ -11,8 +11,7 @@ Provides:
 import io
 import json
 import os
-import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 import pytest
 from fastapi.testclient import TestClient
 
@@ -25,9 +24,8 @@ os.environ["DATABASE_URL"] = (
 )
 
 from apps.api.main import app
-from apps.api.db.session import engine, init_db, SessionLocal
-from apps.api.db.models import Document, Chunk, Run
-from apps.api.llm.provider import FakeLLMProvider
+from apps.api.db.session import init_db, SessionLocal
+from apps.api.db.models import Document
 
 
 def parse_sse_events(raw_text: str) -> List[Tuple[str, Dict[str, Any]]]:

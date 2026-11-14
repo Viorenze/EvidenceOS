@@ -22,23 +22,27 @@ Do not add any other framework, database, queue or cache without asking. Not in 
 ## Layout
 
 ```text
-apps/web/            TanStack Start + Vite+ app
+apps/web/            TanStack Start + Vite+ (Vite 8 + StyleX) app
+  src/routes/        __root, index (/), documents (/documents)
+  src/components/    Header, Footer, ChunkModal, DocumentModal
+  src/lib/           API client, SSE parser, chatStore
+  src/styles/        reset.css, tokens.stylex.ts
 apps/api/            FastAPI app
-  routers/
-  services/
-  rag/               chunking, ingestion, retrieval (hybrid + RRF)
-  agent/             state, nodes, graph
+  routers/           documents, search, chunks, chat, health
+  rag/               chunking, ingestion, embeddings, retrieval (hybrid + RRF)
+  agent/             state, nodes, graph, runner, citations
   llm/               provider abstraction
-  db/                models, session, migrations
-evals/               dataset.jsonl, corpus/, runner
+  db/                models, session
+  cli.py             CLI entrypoints (ingest, search, list)
+evals/               dataset.jsonl, corpus/, runner.py
 reports/             generated eval reports
 docs/                PRD.md, DECISIONS.md
-tests/
+tests/               pytest & 5-tier E2E suite
 docker-compose.yml
 Makefile
 ```
 
-Commands are defined in the Makefile at M0 and kept current: `make up`, `make test`, `make eval`. Always use them rather than ad-hoc commands, and update this section when they change.
+Commands are defined in the Makefile at M0 and kept current: `make up`, `make down`, `make test`, `make eval`, `make setup-eval`, `make lint`. Always use them rather than ad-hoc commands, and update this section when they change.
 
 ## Rules
 

@@ -1,5 +1,7 @@
 """Unit tests for the LLM abstraction layer and FakeLLMProvider."""
 
+import httpx
+import pytest
 from pydantic import BaseModel
 from apps.api.config import Settings
 from apps.api.llm.provider import (
@@ -73,10 +75,6 @@ def test_get_llm_provider_factory():
     settings = Settings(llm_provider="fake")
     provider = get_llm_provider(settings)
     assert isinstance(provider, FakeLLMProvider)
-
-
-import httpx
-import pytest
 
 
 def test_openai_llm_generate_success():

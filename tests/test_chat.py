@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from apps.api.config import Settings
 from apps.api.db.session import get_db
 from apps.api.llm.provider import FakeLLMProvider
 from apps.api.main import app

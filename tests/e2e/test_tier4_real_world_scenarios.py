@@ -26,15 +26,10 @@ Authoritative sources:
 - apps/web/src/lib/api.ts
 """
 
-import io
-import time
 import uuid
 from unittest.mock import patch
-import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.db.models import Chunk, Document
-from apps.api.db.session import SessionLocal
 from apps.api.llm.provider import FakeLLMProvider
 from tests.e2e.conftest import parse_sse_events, upload_test_doc
 
@@ -135,6 +130,7 @@ LangGraph 构建了包含条件循环的智能体工作流：
         assert done_data["refused"] is False
         assert done_data["latency_ms"] > 0
         run_id = done_data["run_id"]
+        assert run_id
 
     # -----------------------------------------------------------------------
     # Step 5: Citation Audit & ChunkModal Inspection

@@ -71,7 +71,8 @@ export async function uploadDocument(
 export async function listDocuments(): Promise<DocumentItem[]> {
   const res = await fetch(`${API_BASE}/api/documents`);
   if (!res.ok) {
-    throw new Error("Failed to fetch documents");
+    const err = await res.json().catch(() => ({ detail: "Failed to fetch documents" }));
+    throw new Error(err.detail || "Failed to fetch documents");
   }
   return res.json();
 }
@@ -90,14 +91,16 @@ export async function deleteDocument(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) {
-    throw new Error("Failed to delete document");
+    const err = await res.json().catch(() => ({ detail: "Failed to delete document" }));
+    throw new Error(err.detail || "Failed to delete document");
   }
 }
 
 export async function getChunkDetail(chunkId: string): Promise<ChunkDetail> {
   const res = await fetch(`${API_BASE}/api/chunks/${chunkId}`);
   if (!res.ok) {
-    throw new Error("Failed to retrieve chunk detail");
+    const err = await res.json().catch(() => ({ detail: "Failed to retrieve chunk detail" }));
+    throw new Error(err.detail || "Failed to retrieve chunk detail");
   }
   return res.json();
 }

@@ -56,7 +56,6 @@ Authoritative coverage across adversarial edge cases:
 import codecs
 import concurrent.futures
 import glob
-import io
 import json
 import os
 import re
@@ -83,11 +82,9 @@ from apps.api.agent.citations import (
     extract_citation_numbers,
     verify_citations,
 )
-from apps.api.config import get_settings
-from apps.api.db.models import Chunk, Document, Run
+from apps.api.db.models import Chunk, Document
 from apps.api.db.session import SessionLocal
 from apps.api.llm.provider import FakeLLMProvider
-from apps.api.routers.chat import format_sse
 from tests.e2e.conftest import parse_sse_events, upload_test_doc
 
 

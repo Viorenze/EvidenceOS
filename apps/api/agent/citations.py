@@ -14,7 +14,7 @@ Why this citation verification design works (Interview Reference):
 """
 
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 
 def extract_citation_numbers(text: str) -> List[int]:

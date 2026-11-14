@@ -10,7 +10,7 @@ Nodes adhere strictly to PRD Section 8 and AGENTS.md rules:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 

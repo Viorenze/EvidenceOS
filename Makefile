@@ -1,4 +1,4 @@
-.PHONY: up down test eval lint
+.PHONY: up down test eval setup-eval lint
 
 up:
 	docker compose up -d
