@@ -2,7 +2,13 @@
 
 import numpy as np
 import pytest
-from apps.api.rag.embeddings import FakeEmbeddingProvider, get_embedding_provider
+from apps.api.rag.embeddings import (
+    FakeEmbeddingProvider,
+    LocalBGEEmbeddingProvider,
+    _FastNumpyBertEngine,
+    _resolve_local_hf_snapshot,
+    get_embedding_provider,
+)
 
 
 def test_fake_embedding_dimensions_and_normalization():
@@ -46,3 +52,44 @@ def test_get_embedding_provider_singleton():
     """Verify factory returns configured provider instance."""
     provider = get_embedding_provider()
     assert isinstance(provider, FakeEmbeddingProvider)
+
+
+@pytest.mark.skipif(
+    _resolve_local_hf_snapshot("BAAI/bge-small-zh-v1.5") is None,
+    reason="Local HF cache for BAAI/bge-small-zh-v1.5 not present",
+)
+def test_local_bge_fast_numpy_engine_correctness_and_edge_cases():
+    """Verify LocalBGEEmbeddingProvider uses _FastNumpyBertEngine, handles padding/truncation/empty inputs, and normalizes vectors."""
+    provider = LocalBGEEmbeddingProvider("BAAI/bge-small-zh-v1.5")
+    assert isinstance(provider.model, _FastNumpyBertEngine)
+
+    # Empty list edge case
+    assert provider.embed_documents([]) == []
+
+    # Empty string & over-length (>512 tokens) truncation edge cases
+    empty_vec = provider.embed_query("")
+    long_vec = provider.embed_query("分布式架构与混合检索系统 " * 120)
+    assert len(empty_vec) == 512
+    assert len(long_vec) == 512
+    assert np.isclose(np.linalg.norm(empty_vec), 1.0, atol=1e-5)
+    assert np.isclose(np.linalg.norm(long_vec), 1.0, atol=1e-5)
+
+    # Batch padding invariance: single query embedding must match batched embedding with a much longer sequence
+    short_text = "FastAPI 异步流式响应"
+    long_text = "在 PostgreSQL 中结合 pgvector 向量索引与 jieba 分词全文检索，通过 RRF 算法融合排序结果。"
+    single_short = np.array(provider.embed_query(short_text), dtype=np.float32)
+    batched = np.array(provider.embed_documents([short_text, long_text]), dtype=np.float32)
+
+    assert batched.shape == (2, 512)
+    assert np.allclose(single_short, batched[0], atol=1e-6)
+    # Semantic similarity sanity check: related query has higher cosine similarity than unrelated query
+    unrelated = np.array(provider.embed_query("今天天气非常适合去公园散步"), dtype=np.float32)
+    related = np.array(provider.embed_query("pgvector 向量与全文混合检索 RRF"), dtype=np.float32)
+    assert float(np.dot(batched[1], related)) > float(np.dot(batched[1], unrelated))
+
+    # Accented characters + mixed case normalizer parity with SentenceTransformer (must lowercase without stripping accents)
+    accented = "Café résumé naïve — PyTorch 2.0 (β) & PostgreSQL pgvector <=>"
+    encoded_ids = provider.model.tokenizer.encode(accented).ids
+    assert encoded_ids[:6] == [101, 100, 100, 100, 100, 158]
+
+

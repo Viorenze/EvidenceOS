@@ -4,8 +4,39 @@ Thresholds, model parameters, and database connection strings are consolidated h
 so no business logic hard-codes magic numbers or environment variables directly.
 """
 
+import os
+import sys
 from functools import lru_cache
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _read_local_dotenv_database_url(dotenv_path: Path) -> str | None:
+    """Read an explicit DATABASE_URL from a local .env file if present."""
+    if not dotenv_path.is_file():
+        return None
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key.strip() == "DATABASE_URL":
+            cleaned = value.strip().strip('"').strip("'")
+            return cleaned or None
+    return None
+
+
+# In local CLI/dev runs (outside pytest, CI, and containers), let project-local `.env`
+# take precedence over an unrelated global host DATABASE_URL unless explicitly forced.
+if (
+    "pytest" not in sys.modules
+    and not os.getenv("CI")
+    and not os.getenv("EVIDENCEOS_DATABASE_URL")
+    and not Path("/.dockerenv").exists()
+):
+    _dotenv_db = _read_local_dotenv_database_url(Path(".env"))
+    if _dotenv_db:
+        os.environ["DATABASE_URL"] = _dotenv_db
 
 
 class Settings(BaseSettings):

@@ -20,7 +20,6 @@ from dataclasses import dataclass
 import io
 import re
 from typing import List, Optional
-from pypdf import PdfReader
 
 
 @dataclass
@@ -167,6 +166,8 @@ def chunk_pdf(
     chunk_overlap: int = 50,
 ) -> List[RawChunk]:
     """Extract plain text from PDF pages and split into chunks with page numbers."""
+    from pypdf import PdfReader
+
     reader = PdfReader(io.BytesIO(file_bytes))
     all_chunks: List[RawChunk] = []
     chunk_idx = 0

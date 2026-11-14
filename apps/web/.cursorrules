@@ -1,0 +1,26 @@
+# Agent Rules for EvidenceOS Web Frontend (TanStack Start + Meta StyleX + Vite+)
+
+## 1. Zero Tailwind CSS Constraint
+- STRICTLY FORBIDDEN: Do not use Tailwind CSS utility classes, `@tailwind` directives, `tailwind.config.js`, `postcss.config.js`, or `autoprefixer`.
+- All styling MUST be implemented using Meta StyleX (`@stylexjs/stylex`).
+
+## 2. Meta StyleX Conventions
+- All component styles must be defined statically using `stylex.create({ ... })`.
+- Apply styles to JSX elements using `{...stylex.props(styles.target)}`.
+- Pass conditional styles as trailing arguments to `stylex.props()`:
+  `stylex.props(styles.base, isActive && styles.active, isError && styles.error)`.
+- Use design tokens from `src/styles/tokens.stylex.ts` whenever referencing theme colors, spacing, and border radii.
+- Never use dynamic string concatenation or template literals for styles.
+- Theme variable definitions must strictly reside in files ending in `*.stylex.ts`.
+- Nest pseudo-classes and media queries inside property values (`color: { default: "...", ":hover": "..." }`) rather than top-level `":hover": { ... }`, and prefer longhand properties (`borderWidth`, `borderStyle`, `borderColor`) over shorthands (`border`, `background`) per `@stylexjs/eslint-plugin`.
+
+## 3. TanStack Start & Router Conventions
+- Routes must use TanStack Router file-based conventions inside `src/routes/`.
+- Use `createFileRoute('/path')` for route components.
+- Use `Link` from `@tanstack/react-router` for internal navigation.
+- Ensure all route loader outputs and search params maintain strict TypeScript typing.
+- Never use Next.js conventions (`'use server'`, `app/api/route.ts`, `next/navigation`, `next/link`).
+
+## 4. Agent Tooling & Verification Workflow
+- Always verify code via `vp check` and `npm run build` in `apps/web`.
+- Verify clean compilation with exit code 0 before concluding any changes.

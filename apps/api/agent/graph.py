@@ -8,11 +8,15 @@ START → retrieve → grade ──sufficient──→ generate → verify_citat
                      └─ rewrites = 2 → refuse → END
 """
 
-import logging
-from typing import Literal
+from __future__ import annotations
 
-from langgraph.graph import END, START, StateGraph
+import logging
+from typing import TYPE_CHECKING, Literal
+
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from langgraph.graph import StateGraph
 
 from apps.api.agent.nodes import AgentNodes
 from apps.api.agent.state import AgentState
@@ -28,6 +32,8 @@ def build_agent_graph(
     settings: Settings,
 ) -> StateGraph:
     """Build the compiled LangGraph agent graph with injected dependencies."""
+    from langgraph.graph import END, START, StateGraph
+
     nodes = AgentNodes(db=db, llm=llm, settings=settings)
     builder = StateGraph(AgentState)
 

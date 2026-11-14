@@ -8,7 +8,7 @@ The owner has one week and must be able to explain every core module in an inter
 
 ## Locked stack
 
-- Frontend: Next.js, TypeScript, Tailwind CSS
+- Frontend: Vite+ (Vite 8), TanStack Start, TypeScript, Meta StyleX
 - Backend: Python, FastAPI, Pydantic, SQLAlchemy
 - Database: PostgreSQL + pgvector (vectors and full-text in the same database)
 - Chinese full-text: segment with jieba, store in `content_seg`, index with `to_tsvector('simple', ...)`
@@ -22,7 +22,7 @@ Do not add any other framework, database, queue or cache without asking. Not in 
 ## Layout
 
 ```text
-apps/web/            Next.js app
+apps/web/            TanStack Start + Vite+ app
 apps/api/            FastAPI app
   routers/
   services/

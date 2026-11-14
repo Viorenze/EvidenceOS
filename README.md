@@ -2,10 +2,11 @@
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014-black.svg)](https://nextjs.org/)
+[![TanStack Start](https://img.shields.io/badge/Frontend-TanStack%20Start%20%2B%20Vite%208-ff4154.svg)](https://tanstack.com/start)
+[![StyleX](https://img.shields.io/badge/Styling-Meta%20StyleX-blue.svg)](https://stylexjs.com/)
 [![PostgreSQL + pgvector](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Tests](https://img.shields.io/badge/Tests-82%20passed%2C%202%20skipped-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-192%20passed-brightgreen.svg)]()
 
 > **EvidenceOS** 是一个面向技术文档、具备严谨证据审查与**服务端引用核对**机制的端到端 AI 知识库问答系统。
 > 核心原则：**宽度精简，深度聚焦——混合检索、有条件循环 Agent、服务端引用核验、可复现基准评测。**
@@ -45,7 +46,7 @@ flowchart TD
         refuse --> stream
     end
 
-    subgraph Client["Web 前端交互 (Next.js 14)"]
+    subgraph Client["Web 前端交互 (TanStack Start + Vite 8 + StyleX)"]
         stream --> ui["Chat 页面<br/>1. 实时 LangGraph 思考步骤面板<br/>2. 逐 Token 流式答案渲染<br/>3. 点击 [n] 引用徽标打开 ChunkModal 对话框原文对账"]
     end
 ```
@@ -159,7 +160,8 @@ make eval
 # 终端 1：启动 FastAPI 后端服务 (端口 8000)
 uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 
-# 终端 2：启动 Next.js 前端服务 (端口 3000)
+# 终端 2：启动 TanStack Start + Vite+ 前端服务 (端口 3000)
+# 检查/构建可使用: cd apps/web && npm run check && npm run build
 cd apps/web
 npm install
 npm run dev
@@ -171,7 +173,7 @@ npm run dev
 
 ### 5. 运行完整自动化测试套件
 ```bash
-# 运行自动化测试套件 (82 passed, 2 skipped；82 个单元测试完全离线确定性执行，2 个集成测试在无本地数据库时自动跳过)
+# 运行完整自动化测试套件 (192 passed：90 项单元/集成测试 + 102 项 5-Tier E2E 测试)
 make test
 # 或 uv run pytest -v
 ```
@@ -191,7 +193,7 @@ EvidenceOS/
 │   │   ├── routers/             # API 路由 (documents, search, chunks, chat SSE)
 │   │   ├── config.py            # 全局配置管理 (基于 pydantic-settings)
 │   │   └── main.py              # FastAPI 应用入口与中间件配置
-│   └── web/                     # Next.js 14 前端单页应用
+│   └── web/                     # TanStack Start + Vite 8 + Meta StyleX 前端应用
 │       ├── src/app/             # App Router 页面 (chat 页面, documents 页面)
 │       └── src/components/      # UI 组件 (Header, ChunkModal 对话框, SSE 客户端流解析器)
 ├── evals/                       # 评测基准
@@ -200,13 +202,21 @@ EvidenceOS/
 │   └── runner.py                # 评测执行脚本 (计算 Hit@5, Citation Precision, Refusal Acc, p50/p95)
 ├── reports/
 │   └── eval.md                  # D5 真实生成的基准评测报告
-├── tests/                       # 自动化测试套件 (82 passed, 2 skipped)
+├── tests/                       # 自动化测试套件 (192 passed)
+│   ├── e2e/                     # 5-Tier 全链路 E2E 与白盒对抗压力测试 (102 passed)
 │   ├── test_agent.py            # Agent 条件边、节点及持久化测试 (解耦 Mock)
+│   ├── test_api.py              # FastAPI REST/SSE 契约与文档详情预览接口测试
 │   ├── test_chat.py             # Chat SSE 协议与 Verify-then-Stream 测试
 │   ├── test_chunker.py          # 分块有效重叠与代码块保护测试
 │   ├── test_citations.py        # 引用提取、清洗与合法性核对测试
+│   ├── test_cli.py              # CLI 检索与列表命令测试
+│   ├── test_dataset.py          # 评测数据集与语料一致性校验
+│   ├── test_embeddings.py       # Embedding 提供商与 _FastNumpyBertEngine 数值精度测试
 │   ├── test_eval.py             # 评测指标算法、零除保护与分位数边界测试
-│   └── test_integration_pipeline.py  # 真实 PostgreSQL 入库与检索全链路集成测试
+│   ├── test_ingestion.py        # Markdown/PDF 文档入库与解析测试
+│   ├── test_integration_pipeline.py  # 真实 PostgreSQL 入库与检索全链路集成测试
+│   ├── test_llm.py              # LLM 抽象层与 Fake/OpenAI 流式客户端测试
+│   └── test_retrieval.py        # 向量/全文检索与 RRF 融合算法测试
 ├── docker/                      # Docker 初始化脚本 (init.sql)
 ├── docs/                        # 设计与架构决策文档 (PRD.md, DECISIONS.md)
 ├── docker-compose.yml           # pgvector 容器编排
@@ -248,3 +258,14 @@ EvidenceOS/
    - 观察思考面板展现 9 个步骤：第 1 次检索不足 → 第 1 次改写重试 → 第 2 次改写重试 → 最终触发 `refuse` 节点；
    - 页面渲染固定拒答文案，避免无据编造；
    - 切换至终端执行 `make eval`，现场跑出三档对比数据，打开 [`reports/eval.md`](reports/eval.md) 结合 `q15` 案例解释指标定义与技术归因。
+
+---
+
+## 架构演进与版本分支 (V1 -> V2)
+
+本项目采用**单仓库多版本演进**策略，在保留初始架构完整历史的同时完成了前端与工程化体系的 V2 重构：
+
+| 版本 / 分支 / Tag | 前端架构与工程化 | 核心演进内容 |
+| :--- | :--- | :--- |
+| **`v1.0.0`** (`legacy/nextjs`) | **Next.js 14 + Tailwind CSS** | 完成 EvidenceOS 全链路 MVP：Hybrid Search + RRF、LangGraph 条件循环、Verify-then-Stream 引用校验、真实 DeepSeek 三档评测基准与 Next.js 基础交互。 |
+| **`v2.0.0`** (`main`) | **TanStack Start + Vite+ (Vite 8) + Meta StyleX** | 1. 迁出 Next.js / Tailwind CSS，重构为全栈强类型 TanStack Start 路由与编译期零运行时原子化 StyleX（配合 `@stylexjs/eslint-plugin` + `vp check --deny-warnings` + `tsc --noEmit` 门禁）；<br>2. 新增文档详情与全文预览（`GET /api/documents/{id}` + `DocumentModal`）、就绪状态/503 代理保护与流式 Markdown/代码高亮渲染；<br>3. 后端向量推理新增轻量纯 NumPy Transformer 引擎（`_FastNumpyBertEngine`），移除 PyTorch 运行时强依赖（与 PyTorch 参考数值误差 `< 2e-7`）；<br>4. 扩展端到端测试至 **192 项全链路测试**（含 5-Tier 102 项 E2E 对抗性验证）。 |

@@ -2,12 +2,12 @@
  * API client and SSE streaming parser for EvidenceOS.
  */
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+export const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export interface DocumentItem {
   id: string;
   filename: string;
-  status: "processing" | "completed" | "failed";
+  status: "ready" | "processing" | "failed" | "completed";
   n_chunks: number;
   error?: string | null;
   created_at: string;
@@ -21,6 +21,11 @@ export interface ChunkDetail {
   page?: number | null;
   heading?: string | null;
   content: string;
+}
+
+export interface DocumentDetail extends DocumentItem {
+  content: string;
+  chunks: ChunkDetail[];
 }
 
 export interface CitationItem {
@@ -44,7 +49,9 @@ export interface DoneData {
   latency_ms: number;
 }
 
-export async function uploadDocument(file: File): Promise<{ id: string; status: string; message: string }> {
+export async function uploadDocument(
+  file: File,
+): Promise<{ id: string; status: string; message: string }> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -65,6 +72,15 @@ export async function listDocuments(): Promise<DocumentItem[]> {
   const res = await fetch(`${API_BASE}/api/documents`);
   if (!res.ok) {
     throw new Error("Failed to fetch documents");
+  }
+  return res.json();
+}
+
+export async function getDocumentDetail(id: string): Promise<DocumentDetail> {
+  const res = await fetch(`${API_BASE}/api/documents/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "获取文档详情失败" }));
+    throw new Error(err.detail || "获取文档详情失败");
   }
   return res.json();
 }
@@ -103,7 +119,9 @@ export interface HealthStatus {
  * Probe backend readiness status.
  * Returns ready=false on any connection errors (e.g. backend still starting up).
  */
-export async function checkHealthReadiness(signal?: AbortSignal): Promise<{ ready: boolean; raw?: HealthStatus }> {
+export async function checkHealthReadiness(
+  signal?: AbortSignal,
+): Promise<{ ready: boolean; raw?: HealthStatus }> {
   try {
     const res = await fetch(`${API_BASE}/api/health?details=true`, {
       method: "GET",
@@ -135,7 +153,7 @@ export interface ChatStreamCallbacks {
 export async function streamChat(
   question: string,
   callbacks: ChatStreamCallbacks,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   let res: Response | null = null;
   let attempts = 0;
@@ -173,7 +191,9 @@ export async function streamChat(
 
   if (!res || !res.ok) {
     const status = res ? res.status : 500;
-    const errorBody = res ? await res.json().catch(() => ({ detail: `HTTP ${status}` })) : { detail: "网络连接失败" };
+    const errorBody = res
+      ? await res.json().catch(() => ({ detail: `HTTP ${status}` }))
+      : { detail: "网络连接失败" };
     callbacks.onError(errorBody.detail || `Request failed with status ${status}`);
     return;
   }
