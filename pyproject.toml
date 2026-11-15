@@ -1,6 +1,6 @@
 [project]
 name = "evidenceos"
-version = "0.1.0"
+version = "1.0.0"
 description = "Verifiable AI knowledge base with hybrid retrieval, conditional LangGraph agent, and CLI eval"
 readme = "README.md"
 requires-python = ">=3.11"
